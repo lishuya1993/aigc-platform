@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History } from 'lucide-vue-next';
+import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History, ArrowUp, Download, X } from 'lucide-vue-next';
 import { secureFetch } from './secure-api';
 // ============ 工具定义 ============
 const TOOLS = [
@@ -92,6 +92,7 @@ const drawModel = ref('');
 const drawUrl = ref('');
 const drawUsedModel = ref('');
 const drawPreviewOpen = ref(false);
+const gptImageInput = ref('');
 const drawHistory = ref([]);
 const productResults = ref([]);
 const drawMode = ref('text');
@@ -1009,6 +1010,55 @@ async function reviseDraw() {
         revisingDraw.value = false;
     }
 }
+async function submitGptImage() {
+    const instruction = gptImageInput.value.trim();
+    if (drawing.value)
+        return;
+    if (!userToken.value) {
+        openLogin();
+        return;
+    }
+    if (!instruction) {
+        ElMessage.warning('请输入你想生成或修改的图片');
+        return;
+    }
+    if (!drawModel.value) {
+        ElMessage.warning('后台尚未启用图片生成模型');
+        return;
+    }
+    const sourceUrl = drawUrl.value || undefined;
+    const prompt = sourceUrl
+        ? `请基于当前图片进行修改。保持没有明确要求修改的主体、构图和细节不变，只执行以下要求：${instruction}`
+        : instruction;
+    drawing.value = true;
+    try {
+        const r = await apiFetch('/aigc/image/generate', {
+            method: 'POST',
+            body: JSON.stringify({ featureCode: 'gpt_image', model: drawModel.value, prompt, size: '1024x1024', imageUrl: sourceUrl })
+        });
+        const d = await r.json();
+        if (d.code !== 200)
+            throw new Error(d.msg || '图片生成失败');
+        const item = { url: d.data.url, prompt: instruction, model: d.data.model || drawModel.value, createdAt: new Date().toLocaleString() };
+        drawHistory.value.unshift(item);
+        selectDrawResult(item);
+        balance.value = Number(d.data.balance);
+        gptImageInput.value = '';
+        ElMessage.success(sourceUrl ? '已根据选中图片生成新版本' : '图片生成完成');
+        loadWorks();
+    }
+    catch (e) {
+        ElMessage.error(e.message || '图片生成失败');
+    }
+    finally {
+        drawing.value = false;
+    }
+}
+function startNewGptImage() {
+    drawUrl.value = '';
+    drawUsedModel.value = '';
+    gptImageInput.value = '';
+}
 async function downloadDraw() {
     if (!drawUrl.value)
         return;
@@ -1264,7 +1314,7 @@ function __VLS_template() {
     const __VLS_ctx = {};
     let __VLS_components;
     let __VLS_directives;
-    ['brand-mark', 'top-search', 'balance-pill', 'user-chip', 'ghost-btn', 'nav-item', 'nav-item', 'nav-item', 'group-head', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'tool-icon', 'ws-title', 'ws-title', 'panel-head', 'panel-head', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'model-select', 'skill-route', 'draw-revise-label', 'draw-revise-label', 'draw-revise', 'draw-revise', 'ghost-btn', 'draw-preview-trigger', 'draw-preview-trigger', 'draw-img', 'draw-actions', 'ghost-btn', 'draw-history-head', 'draw-history-grid', 'draw-history-grid', 'draw-history-grid', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-grid', 'product-result-grid', 'product-result-grid', 'picked', 'product-result-grid', 'product-result-grid', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'form-panel', 'workspace-image', 'workspace-image', 'workspace-image', 'result-empty', 'workspace-image', 'result-empty', 'product-presets', 'product-presets', 'preset-row', 'preset-row', 'picked', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'template-mini', 'template-mini', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'picked', 'template-result-count', 'template-library-card', 'template-library-card', 'picked', 'template-art', 'template-art', 'template-meta', 'template-meta', 'product-fields', 'product-fields', 'product-fields', 'product-result-grid', 'draw-revise-label', 'draw-revise-label', 'draw-revise-row', 'template-library-grid', 'selected-template-card', 'template-mini', 'draw-mode', 'draw-mode', 'picked', 'product-thumb', 'gen-btn', 'gen-btn', 'result-panel', 'result-top', 'result-top', 'dir-tag', 'dir-tag', 'picked', 'result-tabs', 'result-tabs', 'picked', 'revise-box', 'revise-box', 'history-item', 'history-item', 'picked', 'history-item', 'history-item', 'hd-top', 'mat-pick', 'mat-pick', 'mat-pick', 'picked', 'material-card', 'mat-actions', 'ghost-btn', 'material-card', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'result-empty', 'msg', 'msg', 'user', 'bubble', 'msg', 'bubble', 'chat-input', 'chat-input', 'gen-btn', 'size-btn', 'picked', 'draw-img', 'work-card', 'work-card', 'work-card', 'work-card', 'auth-hero', 'auth-hero', 'auth-form', 'auth-form', 'auth-switch', 'code-row', 'code-btn', 'account-dialog', 'account-dialog', 'account-dialog', 'el-tabs__item', 'account-summary', 'account-summary', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'package-item', 'custom-recharge', 'custom-recharge', 'ws-body', 'app', 'topbar', 'brand', 'brand-mark', 'balance-pill', 'balance-pill', 'user-chip', 'ghost-btn', 'ghost-btn', 'sidebar', 'nav-group', 'nav-item', 'nav-item', 'nav-item', 'active', 'nav-item', 'active', 'main', 'hero-title', 'hero-sub', 'group-title', 'tool-grid', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'form-panel', 'result-panel', 'chat-box', 'form-panel', 'panel-head', 'form-panel', 'form-panel', 'model-select', 'chat-input', 'form-panel', 'model-select', 'gen-btn', 'auth-btn', 'gen-btn', 'size-btn', 'picked', 'result-empty', 'empty-icon', 'el-dialog', 'account-dialog', 'el-dialog', 'auth-btn', 'code-btn', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'account-dialog', 'el-tabs__item', 'is-active', 'topbar', 'sidebar', 'main', 'top-search', 'top-right', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'layout', 'sidebar', 'mobile-menu', 'home', 'home-hero', 'hero-title', 'hero-title', 'hero-sub', 'hero-primary', 'hero-secondary', 'section-label', 'quick-card', 'quick-card', 'quick-card', 'quick-card', 'quick-icon', 'quick-icon', 'quick-icon', 'quick-icon', 'tool-library', 'home-group', 'tool-library', 'group-head', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-icon', 'tool-library', 'tool-icon', 'chat-box', 'workspace-chat', 'chat-msgs', 'workspace-chat', 'chat-input', 'workspace-image', 'form-panel', 'form-panel', 'workspace-image', 'result-panel', 'workspace-video', 'result-panel', 'result-panel', 'works-grid', 'works-grid', 'mat-picker', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'home-hero', 'hero-orbit', 'quick-grid', 'ws-body', 'mobile-menu', 'topbar', 'brand', 'brand-mark', 'top-right', 'balance-pill', 'top-right', 'ghost-btn', 'layout', 'mobile-backdrop', 'sidebar', 'sidebar', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'main', 'home-hero', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'section-label', 'section-label', 'section-note', 'quick-grid', 'quick-card', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'ws-title', 'ws-actions', 'ws-actions', 'ghost-btn', 'ws-body', 'form-panel', 'result-panel', 'form-panel', 'result-panel', 'chat-box', 'chat-msgs', 'chat-input', 'chat-input', 'gen-btn', 'media-upload', 'media-upload', 'account-summary', 'account-summary', 'package-grid', 'custom-recharge', 'home-group', 'skill-route', 'skill-route',];
+    ['brand-mark', 'top-search', 'balance-pill', 'user-chip', 'ghost-btn', 'nav-item', 'nav-item', 'nav-item', 'group-head', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'tool-icon', 'ws-title', 'ws-title', 'panel-head', 'panel-head', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'model-select', 'skill-route', 'draw-revise-label', 'draw-revise-label', 'draw-revise', 'draw-revise', 'ghost-btn', 'draw-preview-trigger', 'draw-preview-trigger', 'draw-img', 'draw-actions', 'ghost-btn', 'draw-history-head', 'draw-history-grid', 'draw-history-grid', 'draw-history-grid', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-grid', 'product-result-grid', 'product-result-grid', 'picked', 'product-result-grid', 'product-result-grid', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'form-panel', 'workspace-image', 'workspace-image', 'workspace-image', 'result-empty', 'workspace-image', 'result-empty', 'product-presets', 'product-presets', 'preset-row', 'preset-row', 'picked', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'template-mini', 'template-mini', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'picked', 'template-result-count', 'template-library-card', 'template-library-card', 'picked', 'template-art', 'template-art', 'template-meta', 'template-meta', 'product-fields', 'product-fields', 'product-fields', 'product-result-grid', 'draw-revise-label', 'draw-revise-label', 'draw-revise-row', 'template-library-grid', 'selected-template-card', 'template-mini', 'draw-mode', 'draw-mode', 'picked', 'product-thumb', 'gen-btn', 'gen-btn', 'result-panel', 'result-top', 'result-top', 'dir-tag', 'dir-tag', 'picked', 'result-tabs', 'result-tabs', 'picked', 'revise-box', 'revise-box', 'history-item', 'history-item', 'picked', 'history-item', 'history-item', 'hd-top', 'mat-pick', 'mat-pick', 'mat-pick', 'picked', 'material-card', 'mat-actions', 'ghost-btn', 'material-card', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'result-empty', 'msg', 'msg', 'user', 'bubble', 'msg', 'bubble', 'chat-input', 'chat-input', 'gen-btn', 'size-btn', 'picked', 'draw-img', 'work-card', 'work-card', 'work-card', 'work-card', 'auth-hero', 'auth-hero', 'auth-form', 'auth-form', 'auth-switch', 'code-row', 'code-btn', 'account-dialog', 'account-dialog', 'account-dialog', 'el-tabs__item', 'account-summary', 'account-summary', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'package-item', 'custom-recharge', 'custom-recharge', 'ws-body', 'app', 'topbar', 'brand', 'brand-mark', 'balance-pill', 'balance-pill', 'user-chip', 'ghost-btn', 'ghost-btn', 'sidebar', 'nav-group', 'nav-item', 'nav-item', 'nav-item', 'active', 'nav-item', 'active', 'main', 'hero-title', 'hero-sub', 'group-title', 'tool-grid', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'form-panel', 'result-panel', 'chat-box', 'form-panel', 'panel-head', 'form-panel', 'form-panel', 'model-select', 'chat-input', 'form-panel', 'model-select', 'gen-btn', 'auth-btn', 'gen-btn', 'size-btn', 'picked', 'result-empty', 'empty-icon', 'el-dialog', 'account-dialog', 'el-dialog', 'auth-btn', 'code-btn', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'account-dialog', 'el-tabs__item', 'is-active', 'topbar', 'sidebar', 'main', 'top-search', 'top-right', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'layout', 'sidebar', 'mobile-menu', 'home', 'home-hero', 'hero-title', 'hero-title', 'hero-sub', 'hero-primary', 'hero-secondary', 'section-label', 'quick-card', 'quick-card', 'quick-card', 'quick-card', 'quick-icon', 'quick-icon', 'quick-icon', 'quick-icon', 'tool-library', 'home-group', 'tool-library', 'group-head', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-icon', 'tool-library', 'tool-icon', 'chat-box', 'workspace-chat', 'chat-msgs', 'workspace-chat', 'chat-input', 'workspace-image', 'form-panel', 'form-panel', 'workspace-image', 'result-panel', 'workspace-video', 'result-panel', 'result-panel', 'works-grid', 'works-grid', 'mat-picker', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-composer', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-model-picker', 'gpt-download', 'gpt-download', 'gpt-send', 'gpt-send', 'gpt-send', 'home-hero', 'hero-orbit', 'quick-grid', 'ws-body', 'mobile-menu', 'topbar', 'brand', 'brand-mark', 'top-right', 'balance-pill', 'top-right', 'ghost-btn', 'layout', 'mobile-backdrop', 'sidebar', 'sidebar', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'main', 'home-hero', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'section-label', 'section-label', 'section-note', 'quick-grid', 'quick-card', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'ws-title', 'ws-actions', 'ws-actions', 'ghost-btn', 'ws-body', 'form-panel', 'result-panel', 'form-panel', 'result-panel', 'chat-box', 'chat-msgs', 'chat-input', 'chat-input', 'gen-btn', 'media-upload', 'media-upload', 'account-summary', 'account-summary', 'package-grid', 'custom-recharge', 'home-group', 'workspace-gpt-image', 'gpt-image-head', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-gallery', 'gpt-image-composer', 'gpt-image-composer', 'gpt-model-picker', 'gpt-used-model', 'skill-route', 'skill-route',];
     // CSS variable injection 
     // CSS variable injection end 
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -2184,7 +2234,179 @@ function __VLS_template() {
             disabled: ((__VLS_ctx.chatting)),
         });
     }
-    else if (['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)) {
+    else if (__VLS_ctx.selected.key === 'gpt_image') {
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("workspace workspace-gpt-image") },
+        });
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("gpt-image-head") },
+        });
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+        __VLS_elementAsFunction(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({});
+        __VLS_elementAsFunction(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+        if (__VLS_ctx.drawUrl) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+                ...{ onClick: (__VLS_ctx.startNewGptImage) },
+                ...{ class: ("gpt-new-image") },
+            });
+            const __VLS_200 = {}.Sparkles;
+            /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
+            // @ts-ignore
+            const __VLS_201 = __VLS_asFunctionalComponent(__VLS_200, new __VLS_200({
+                size: ((15)),
+            }));
+            const __VLS_202 = __VLS_201({
+                size: ((15)),
+            }, ...__VLS_functionalComponentArgsRest(__VLS_201));
+        }
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("gpt-image-stage") },
+        });
+        if (!__VLS_ctx.drawHistory.length) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: ("gpt-image-empty") },
+            });
+            __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+            const __VLS_206 = {}.Sparkles;
+            /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
+            // @ts-ignore
+            const __VLS_207 = __VLS_asFunctionalComponent(__VLS_206, new __VLS_206({
+                size: ((25)),
+            }));
+            const __VLS_208 = __VLS_207({
+                size: ((25)),
+            }, ...__VLS_functionalComponentArgsRest(__VLS_207));
+            __VLS_elementAsFunction(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
+            __VLS_elementAsFunction(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
+        }
+        else {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: ("gpt-image-gallery") },
+            });
+            for (const [item, i] of __VLS_getVForSourceType((__VLS_ctx.drawHistory))) {
+                __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+                    ...{ onClick: (...[$event]) => {
+                            if (!(!((__VLS_ctx.selected.key === 'home'))))
+                                return;
+                            if (!(!((!__VLS_ctx.selected.needCap && !['chat', 'works', 'tts'].includes(__VLS_ctx.selected.key)))))
+                                return;
+                            if (!(!((__VLS_ctx.selected.key === 'chat'))))
+                                return;
+                            if (!((__VLS_ctx.selected.key === 'gpt_image')))
+                                return;
+                            if (!(!((!__VLS_ctx.drawHistory.length))))
+                                return;
+                            __VLS_ctx.selectDrawResult(item);
+                        } },
+                    key: ((item.url + i)),
+                    ...{ class: ("gpt-image-card") },
+                    ...{ class: (({ selected: item.url === __VLS_ctx.drawUrl })) },
+                });
+                __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
+                    src: ((item.url)),
+                    alt: ((item.prompt)),
+                });
+                if (item.url === __VLS_ctx.drawUrl) {
+                    __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+                }
+            }
+        }
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("gpt-image-composer") },
+        });
+        if (__VLS_ctx.drawUrl) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: ("gpt-editing-chip") },
+            });
+            __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
+                src: ((__VLS_ctx.drawUrl)),
+                alt: ("当前参考图"),
+            });
+            __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+            __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+                ...{ onClick: (__VLS_ctx.startNewGptImage) },
+                title: ("取消选中，生成全新图片"),
+            });
+            const __VLS_212 = {}.X;
+            /** @type { [typeof __VLS_components.X, ] } */ ;
+            // @ts-ignore
+            const __VLS_213 = __VLS_asFunctionalComponent(__VLS_212, new __VLS_212({
+                size: ((14)),
+            }));
+            const __VLS_214 = __VLS_213({
+                size: ((14)),
+            }, ...__VLS_functionalComponentArgsRest(__VLS_213));
+        }
+        __VLS_elementAsFunction(__VLS_intrinsicElements.textarea, __VLS_intrinsicElements.textarea)({
+            ...{ onKeydown: (__VLS_ctx.submitGptImage) },
+            value: ((__VLS_ctx.gptImageInput)),
+            rows: ("1"),
+            placeholder: ((__VLS_ctx.drawUrl ? '告诉我需要怎样修改这张图片…' : '描述一张新图片…')),
+        });
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("gpt-composer-tools") },
+        });
+        __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+            ...{ class: ("gpt-model-picker") },
+        });
+        const __VLS_218 = {}.Sparkles;
+        /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
+        // @ts-ignore
+        const __VLS_219 = __VLS_asFunctionalComponent(__VLS_218, new __VLS_218({
+            size: ((14)),
+        }));
+        const __VLS_220 = __VLS_219({
+            size: ((14)),
+        }, ...__VLS_functionalComponentArgsRest(__VLS_219));
+        __VLS_elementAsFunction(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+            value: ((__VLS_ctx.drawModel)),
+            'aria-label': ("生图模型"),
+        });
+        for (const [model] of __VLS_getVForSourceType((__VLS_ctx.drawModels))) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+                key: ((model.model_code)),
+                value: ((model.model_code)),
+            });
+            (model.model_name || model.model_code);
+        }
+        if (__VLS_ctx.drawUsedModel) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+                ...{ class: ("gpt-used-model") },
+            });
+            (__VLS_ctx.drawUsedModel);
+        }
+        __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (__VLS_ctx.downloadDraw) },
+            ...{ class: ("gpt-download") },
+            disabled: ((!__VLS_ctx.drawUrl)),
+            title: ("下载选中图片"),
+        });
+        const __VLS_224 = {}.Download;
+        /** @type { [typeof __VLS_components.Download, ] } */ ;
+        // @ts-ignore
+        const __VLS_225 = __VLS_asFunctionalComponent(__VLS_224, new __VLS_224({
+            size: ((16)),
+        }));
+        const __VLS_226 = __VLS_225({
+            size: ((16)),
+        }, ...__VLS_functionalComponentArgsRest(__VLS_225));
+        __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
+            ...{ onClick: (__VLS_ctx.submitGptImage) },
+            ...{ class: ("gpt-send") },
+            disabled: ((__VLS_ctx.drawing || !__VLS_ctx.gptImageInput.trim())),
+            title: ("生成图片"),
+        });
+        const __VLS_230 = {}.ArrowUp;
+        /** @type { [typeof __VLS_components.ArrowUp, ] } */ ;
+        // @ts-ignore
+        const __VLS_231 = __VLS_asFunctionalComponent(__VLS_230, new __VLS_230({
+            size: ((18)),
+        }));
+        const __VLS_232 = __VLS_231({
+            size: ((18)),
+        }, ...__VLS_functionalComponentArgsRest(__VLS_231));
+    }
+    else if (['image', 'product_main'].includes(__VLS_ctx.selected.key)) {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("workspace workspace-image") },
         });
@@ -2198,15 +2420,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_200 = {}.Palette;
+        const __VLS_236 = {}.Palette;
         /** @type { [typeof __VLS_components.Palette, ] } */ ;
         // @ts-ignore
-        const __VLS_201 = __VLS_asFunctionalComponent(__VLS_200, new __VLS_200({
+        const __VLS_237 = __VLS_asFunctionalComponent(__VLS_236, new __VLS_236({
             size: ((17)),
         }));
-        const __VLS_202 = __VLS_201({
+        const __VLS_238 = __VLS_237({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_201));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_237));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         (__VLS_ctx.selected.key === 'product_main' ? '商品主图' : __VLS_ctx.selected.key === 'gpt_image' ? 'GPT 图片生成' : 'AI 绘画');
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2224,19 +2446,19 @@ function __VLS_template() {
             ...{ class: ("panel-icon") },
             ...{ style: ({}) },
         });
-        const __VLS_206 = {}.Palette;
+        const __VLS_242 = {}.Palette;
         /** @type { [typeof __VLS_components.Palette, ] } */ ;
         // @ts-ignore
-        const __VLS_207 = __VLS_asFunctionalComponent(__VLS_206, new __VLS_206({
+        const __VLS_243 = __VLS_asFunctionalComponent(__VLS_242, new __VLS_242({
             size: ((15)),
         }));
-        const __VLS_208 = __VLS_207({
+        const __VLS_244 = __VLS_243({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_207));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_243));
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
-        if (['image', 'gpt_image'].includes(__VLS_ctx.selected.key)) {
+        if (__VLS_ctx.selected.key === 'image') {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("draw-mode") },
             });
@@ -2248,9 +2470,11 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
                             return;
-                        if (!((['image', 'gpt_image'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            return;
+                        if (!((__VLS_ctx.selected.key === 'image')))
                             return;
                         __VLS_ctx.drawMode = 'text';
                     } },
@@ -2264,9 +2488,11 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
                             return;
-                        if (!((['image', 'gpt_image'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            return;
+                        if (!((__VLS_ctx.selected.key === 'image')))
                             return;
                         __VLS_ctx.drawMode = 'product';
                     } },
@@ -2288,15 +2514,15 @@ function __VLS_template() {
                 ...{ class: ("media-upload compact") },
             });
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-            const __VLS_212 = {}.ImageIcon;
+            const __VLS_248 = {}.ImageIcon;
             /** @type { [typeof __VLS_components.ImageIcon, ] } */ ;
             // @ts-ignore
-            const __VLS_213 = __VLS_asFunctionalComponent(__VLS_212, new __VLS_212({
+            const __VLS_249 = __VLS_asFunctionalComponent(__VLS_248, new __VLS_248({
                 size: ((18)),
             }));
-            const __VLS_214 = __VLS_213({
+            const __VLS_250 = __VLS_249({
                 size: ((18)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_213));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_249));
             __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
             (__VLS_ctx.productUploading ? '上传中…' : '上传商品图片');
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2350,7 +2576,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawMode === 'product')))
                                 return;
@@ -2372,7 +2600,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
                         if (!((__VLS_ctx.drawMode === 'product')))
                             return;
@@ -2418,15 +2648,15 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("skill-route") },
         });
-        const __VLS_218 = {}.Sparkles;
+        const __VLS_254 = {}.Sparkles;
         /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
         // @ts-ignore
-        const __VLS_219 = __VLS_asFunctionalComponent(__VLS_218, new __VLS_218({
+        const __VLS_255 = __VLS_asFunctionalComponent(__VLS_254, new __VLS_254({
             size: ((15)),
         }));
-        const __VLS_220 = __VLS_219({
+        const __VLS_256 = __VLS_255({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_219));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_255));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         (__VLS_ctx.drawUsedModel ? `图片生成 Skill · ${__VLS_ctx.drawUsedModel}` : `图片生成 Skill · ${__VLS_ctx.drawModel || '后台默认路由'}`);
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2444,7 +2674,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
                         __VLS_ctx.drawSize = s;
                     } },
@@ -2459,15 +2691,15 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
             disabled: ((__VLS_ctx.drawing)),
         });
-        const __VLS_224 = {}.Palette;
+        const __VLS_260 = {}.Palette;
         /** @type { [typeof __VLS_components.Palette, ] } */ ;
         // @ts-ignore
-        const __VLS_225 = __VLS_asFunctionalComponent(__VLS_224, new __VLS_224({
+        const __VLS_261 = __VLS_asFunctionalComponent(__VLS_260, new __VLS_260({
             size: ((16)),
         }));
-        const __VLS_226 = __VLS_225({
+        const __VLS_262 = __VLS_261({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_225));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_261));
         (__VLS_ctx.drawing ? '生成中…' : (__VLS_ctx.drawMode === 'product' ? `开始生成 ${__VLS_ctx.productCount} 张` : '开始绘画'));
         if (__VLS_ctx.drawMode === 'product') {
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({
@@ -2502,7 +2734,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawMode === 'product' && __VLS_ctx.productResults.length)))
                                 return;
@@ -2598,7 +2832,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawHistory.length)))
                                 return;
@@ -2620,15 +2856,15 @@ function __VLS_template() {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("empty-icon") },
             });
-            const __VLS_230 = {}.Palette;
+            const __VLS_266 = {}.Palette;
             /** @type { [typeof __VLS_components.Palette, ] } */ ;
             // @ts-ignore
-            const __VLS_231 = __VLS_asFunctionalComponent(__VLS_230, new __VLS_230({
+            const __VLS_267 = __VLS_asFunctionalComponent(__VLS_266, new __VLS_266({
                 size: ((26)),
             }));
-            const __VLS_232 = __VLS_231({
+            const __VLS_268 = __VLS_267({
                 size: ((26)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_231));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_267));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
             (__VLS_ctx.drawModels.length ? '填写要求并开始生成' : '需要后台配置绘图模型（capability=draw）');
@@ -2648,15 +2884,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_236 = {}.Video;
+        const __VLS_272 = {}.Video;
         /** @type { [typeof __VLS_components.Video, ] } */ ;
         // @ts-ignore
-        const __VLS_237 = __VLS_asFunctionalComponent(__VLS_236, new __VLS_236({
+        const __VLS_273 = __VLS_asFunctionalComponent(__VLS_272, new __VLS_272({
             size: ((17)),
         }));
-        const __VLS_238 = __VLS_237({
+        const __VLS_274 = __VLS_273({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_237));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_273));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -2672,15 +2908,15 @@ function __VLS_template() {
             ...{ class: ("panel-icon") },
             ...{ style: ({}) },
         });
-        const __VLS_242 = {}.Video;
+        const __VLS_278 = {}.Video;
         /** @type { [typeof __VLS_components.Video, ] } */ ;
         // @ts-ignore
-        const __VLS_243 = __VLS_asFunctionalComponent(__VLS_242, new __VLS_242({
+        const __VLS_279 = __VLS_asFunctionalComponent(__VLS_278, new __VLS_278({
             size: ((15)),
         }));
-        const __VLS_244 = __VLS_243({
+        const __VLS_280 = __VLS_279({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_243));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_279));
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2699,7 +2935,9 @@ function __VLS_template() {
                         return;
                     if (!(!((__VLS_ctx.selected.key === 'chat'))))
                         return;
-                    if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                    if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                        return;
+                    if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                         return;
                     if (!((__VLS_ctx.selected.key === 'video')))
                         return;
@@ -2718,7 +2956,9 @@ function __VLS_template() {
                         return;
                     if (!(!((__VLS_ctx.selected.key === 'chat'))))
                         return;
-                    if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                    if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                        return;
+                    if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                         return;
                     if (!((__VLS_ctx.selected.key === 'video')))
                         return;
@@ -2727,15 +2967,15 @@ function __VLS_template() {
             ...{ class: ("media-upload compact") },
         });
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-        const __VLS_248 = {}.ImageIcon;
+        const __VLS_284 = {}.ImageIcon;
         /** @type { [typeof __VLS_components.ImageIcon, ] } */ ;
         // @ts-ignore
-        const __VLS_249 = __VLS_asFunctionalComponent(__VLS_248, new __VLS_248({
+        const __VLS_285 = __VLS_asFunctionalComponent(__VLS_284, new __VLS_284({
             size: ((18)),
         }));
-        const __VLS_250 = __VLS_249({
+        const __VLS_286 = __VLS_285({
             size: ((18)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_249));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_285));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         (__VLS_ctx.videoImageUrl ? '首帧已上传' : '上传首帧图片');
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2749,7 +2989,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!((__VLS_ctx.selected.key === 'video')))
                             return;
@@ -2770,7 +3012,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!((__VLS_ctx.selected.key === 'video')))
                             return;
@@ -2781,15 +3025,15 @@ function __VLS_template() {
                 ...{ class: ("media-upload compact") },
             });
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-            const __VLS_254 = {}.ImageIcon;
+            const __VLS_290 = {}.ImageIcon;
             /** @type { [typeof __VLS_components.ImageIcon, ] } */ ;
             // @ts-ignore
-            const __VLS_255 = __VLS_asFunctionalComponent(__VLS_254, new __VLS_254({
+            const __VLS_291 = __VLS_asFunctionalComponent(__VLS_290, new __VLS_290({
                 size: ((18)),
             }));
-            const __VLS_256 = __VLS_255({
+            const __VLS_292 = __VLS_291({
                 size: ((18)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_255));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_291));
             __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
             (__VLS_ctx.videoImageUrl2 ? '尾帧已上传' : '上传尾帧图片');
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2797,15 +3041,15 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("skill-route") },
         });
-        const __VLS_260 = {}.Sparkles;
+        const __VLS_296 = {}.Sparkles;
         /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
         // @ts-ignore
-        const __VLS_261 = __VLS_asFunctionalComponent(__VLS_260, new __VLS_260({
+        const __VLS_297 = __VLS_asFunctionalComponent(__VLS_296, new __VLS_296({
             size: ((15)),
         }));
-        const __VLS_262 = __VLS_261({
+        const __VLS_298 = __VLS_297({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_261));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_297));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
@@ -2813,15 +3057,15 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
             disabled: ((__VLS_ctx.videoGenerating)),
         });
-        const __VLS_266 = {}.Video;
+        const __VLS_302 = {}.Video;
         /** @type { [typeof __VLS_components.Video, ] } */ ;
         // @ts-ignore
-        const __VLS_267 = __VLS_asFunctionalComponent(__VLS_266, new __VLS_266({
+        const __VLS_303 = __VLS_asFunctionalComponent(__VLS_302, new __VLS_302({
             size: ((16)),
         }));
-        const __VLS_268 = __VLS_267({
+        const __VLS_304 = __VLS_303({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_267));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_303));
         (__VLS_ctx.videoGenerating ? '生成中（约1-3分钟）…' : '生成视频');
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("result-panel") },
@@ -2841,15 +3085,15 @@ function __VLS_template() {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("empty-icon") },
             });
-            const __VLS_272 = {}.Video;
+            const __VLS_308 = {}.Video;
             /** @type { [typeof __VLS_components.Video, ] } */ ;
             // @ts-ignore
-            const __VLS_273 = __VLS_asFunctionalComponent(__VLS_272, new __VLS_272({
+            const __VLS_309 = __VLS_asFunctionalComponent(__VLS_308, new __VLS_308({
                 size: ((26)),
             }));
-            const __VLS_274 = __VLS_273({
+            const __VLS_310 = __VLS_309({
                 size: ((26)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_273));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_309));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         }
@@ -2868,15 +3112,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_278 = {}.AudioLines;
+        const __VLS_314 = {}.AudioLines;
         /** @type { [typeof __VLS_components.AudioLines, ] } */ ;
         // @ts-ignore
-        const __VLS_279 = __VLS_asFunctionalComponent(__VLS_278, new __VLS_278({
+        const __VLS_315 = __VLS_asFunctionalComponent(__VLS_314, new __VLS_314({
             size: ((17)),
         }));
-        const __VLS_280 = __VLS_279({
+        const __VLS_316 = __VLS_315({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_279));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_315));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -2892,15 +3136,15 @@ function __VLS_template() {
             ...{ class: ("panel-icon") },
             ...{ style: ({}) },
         });
-        const __VLS_284 = {}.AudioLines;
+        const __VLS_320 = {}.AudioLines;
         /** @type { [typeof __VLS_components.AudioLines, ] } */ ;
         // @ts-ignore
-        const __VLS_285 = __VLS_asFunctionalComponent(__VLS_284, new __VLS_284({
+        const __VLS_321 = __VLS_asFunctionalComponent(__VLS_320, new __VLS_320({
             size: ((15)),
         }));
-        const __VLS_286 = __VLS_285({
+        const __VLS_322 = __VLS_321({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_285));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_321));
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -2932,15 +3176,15 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
             disabled: ((__VLS_ctx.ttsGenerating)),
         });
-        const __VLS_290 = {}.AudioLines;
+        const __VLS_326 = {}.AudioLines;
         /** @type { [typeof __VLS_components.AudioLines, ] } */ ;
         // @ts-ignore
-        const __VLS_291 = __VLS_asFunctionalComponent(__VLS_290, new __VLS_290({
+        const __VLS_327 = __VLS_asFunctionalComponent(__VLS_326, new __VLS_326({
             size: ((16)),
         }));
-        const __VLS_292 = __VLS_291({
+        const __VLS_328 = __VLS_327({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_291));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_327));
         (__VLS_ctx.ttsGenerating ? '生成中…' : '生成配音');
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("result-panel") },
@@ -2970,15 +3214,15 @@ function __VLS_template() {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("empty-icon") },
             });
-            const __VLS_296 = {}.AudioLines;
+            const __VLS_332 = {}.AudioLines;
             /** @type { [typeof __VLS_components.AudioLines, ] } */ ;
             // @ts-ignore
-            const __VLS_297 = __VLS_asFunctionalComponent(__VLS_296, new __VLS_296({
+            const __VLS_333 = __VLS_asFunctionalComponent(__VLS_332, new __VLS_332({
                 size: ((26)),
             }));
-            const __VLS_298 = __VLS_297({
+            const __VLS_334 = __VLS_333({
                 size: ((26)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_297));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_333));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         }
@@ -2997,14 +3241,14 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: (({ background: __VLS_ctx.selected.color + '22', color: __VLS_ctx.selected.color })) },
         });
-        const __VLS_302 = ((__VLS_ctx.selected.icon));
+        const __VLS_338 = ((__VLS_ctx.selected.icon));
         // @ts-ignore
-        const __VLS_303 = __VLS_asFunctionalComponent(__VLS_302, new __VLS_302({
+        const __VLS_339 = __VLS_asFunctionalComponent(__VLS_338, new __VLS_338({
             size: ((17)),
         }));
-        const __VLS_304 = __VLS_303({
+        const __VLS_340 = __VLS_339({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_303));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_339));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         (__VLS_ctx.selected.title);
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -3022,14 +3266,14 @@ function __VLS_template() {
             ...{ class: ("panel-icon") },
             ...{ style: (({ background: __VLS_ctx.selected.color + '16', color: __VLS_ctx.selected.color })) },
         });
-        const __VLS_308 = ((__VLS_ctx.selected.icon));
+        const __VLS_344 = ((__VLS_ctx.selected.icon));
         // @ts-ignore
-        const __VLS_309 = __VLS_asFunctionalComponent(__VLS_308, new __VLS_308({
+        const __VLS_345 = __VLS_asFunctionalComponent(__VLS_344, new __VLS_344({
             size: ((16)),
         }));
-        const __VLS_310 = __VLS_309({
+        const __VLS_346 = __VLS_345({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_309));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_345));
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         (__VLS_ctx.selected.title);
@@ -3046,7 +3290,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3071,7 +3317,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3087,26 +3335,26 @@ function __VLS_template() {
             });
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             if (__VLS_ctx.selected.key !== 'voice_clone') {
-                const __VLS_314 = {}.ImageIcon;
+                const __VLS_350 = {}.ImageIcon;
                 /** @type { [typeof __VLS_components.ImageIcon, ] } */ ;
                 // @ts-ignore
-                const __VLS_315 = __VLS_asFunctionalComponent(__VLS_314, new __VLS_314({
+                const __VLS_351 = __VLS_asFunctionalComponent(__VLS_350, new __VLS_350({
                     size: ((18)),
                 }));
-                const __VLS_316 = __VLS_315({
+                const __VLS_352 = __VLS_351({
                     size: ((18)),
-                }, ...__VLS_functionalComponentArgsRest(__VLS_315));
+                }, ...__VLS_functionalComponentArgsRest(__VLS_351));
             }
             else {
-                const __VLS_320 = {}.AudioLines;
+                const __VLS_356 = {}.AudioLines;
                 /** @type { [typeof __VLS_components.AudioLines, ] } */ ;
                 // @ts-ignore
-                const __VLS_321 = __VLS_asFunctionalComponent(__VLS_320, new __VLS_320({
+                const __VLS_357 = __VLS_asFunctionalComponent(__VLS_356, new __VLS_356({
                     size: ((18)),
                 }));
-                const __VLS_322 = __VLS_321({
+                const __VLS_358 = __VLS_357({
                     size: ((18)),
-                }, ...__VLS_functionalComponentArgsRest(__VLS_321));
+                }, ...__VLS_functionalComponentArgsRest(__VLS_357));
             }
             __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
             (__VLS_ctx.mediaInputUrl ? '素材已上传' : '点击上传参考素材');
@@ -3123,7 +3371,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -3150,7 +3400,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -3167,15 +3419,15 @@ function __VLS_template() {
                     ...{ class: ("media-upload compact") },
                 });
                 __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-                const __VLS_326 = {}.ScanFace;
+                const __VLS_362 = {}.ScanFace;
                 /** @type { [typeof __VLS_components.ScanFace, ] } */ ;
                 // @ts-ignore
-                const __VLS_327 = __VLS_asFunctionalComponent(__VLS_326, new __VLS_326({
+                const __VLS_363 = __VLS_asFunctionalComponent(__VLS_362, new __VLS_362({
                     size: ((18)),
                 }));
-                const __VLS_328 = __VLS_327({
+                const __VLS_364 = __VLS_363({
                     size: ((18)),
-                }, ...__VLS_functionalComponentArgsRest(__VLS_327));
+                }, ...__VLS_functionalComponentArgsRest(__VLS_363));
                 __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
                 (__VLS_ctx.mediaInputUrl2 ? '第二张照片已上传' : '上传第二张照片');
             }
@@ -3195,15 +3447,15 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("skill-route") },
         });
-        const __VLS_332 = {}.Sparkles;
+        const __VLS_368 = {}.Sparkles;
         /** @type { [typeof __VLS_components.Sparkles, ] } */ ;
         // @ts-ignore
-        const __VLS_333 = __VLS_asFunctionalComponent(__VLS_332, new __VLS_332({
+        const __VLS_369 = __VLS_asFunctionalComponent(__VLS_368, new __VLS_368({
             size: ((15)),
         }));
-        const __VLS_334 = __VLS_333({
+        const __VLS_370 = __VLS_369({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_333));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_369));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         (__VLS_ctx.currentMediaModels.length ? '由后台 Skill 自动选择可用模型' : '后台尚未配置可用模型');
@@ -3212,14 +3464,14 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
             disabled: ((__VLS_ctx.mediaGenerating || !__VLS_ctx.currentMediaModels.length)),
         });
-        const __VLS_338 = ((__VLS_ctx.selected.icon));
+        const __VLS_374 = ((__VLS_ctx.selected.icon));
         // @ts-ignore
-        const __VLS_339 = __VLS_asFunctionalComponent(__VLS_338, new __VLS_338({
+        const __VLS_375 = __VLS_asFunctionalComponent(__VLS_374, new __VLS_374({
             size: ((16)),
         }));
-        const __VLS_340 = __VLS_339({
+        const __VLS_376 = __VLS_375({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_339));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_375));
         (__VLS_ctx.mediaGenerating ? '生成处理中…' : __VLS_ctx.currentMediaModels.length ? `开始${__VLS_ctx.selected.title}` : '等待后台配置模型');
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("result-panel media-result") },
@@ -3266,14 +3518,14 @@ function __VLS_template() {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("empty-icon") },
             });
-            const __VLS_344 = ((__VLS_ctx.selected.icon));
+            const __VLS_380 = ((__VLS_ctx.selected.icon));
             // @ts-ignore
-            const __VLS_345 = __VLS_asFunctionalComponent(__VLS_344, new __VLS_344({
+            const __VLS_381 = __VLS_asFunctionalComponent(__VLS_380, new __VLS_380({
                 size: ((26)),
             }));
-            const __VLS_346 = __VLS_345({
+            const __VLS_382 = __VLS_381({
                 size: ((26)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_345));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_381));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             (__VLS_ctx.currentMediaModels.length ? `${__VLS_ctx.selected.title}结果会显示在这里` : '后台尚未配置此类模型');
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -3294,15 +3546,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_350 = {}.FolderOpen;
+        const __VLS_386 = {}.FolderOpen;
         /** @type { [typeof __VLS_components.FolderOpen, ] } */ ;
         // @ts-ignore
-        const __VLS_351 = __VLS_asFunctionalComponent(__VLS_350, new __VLS_350({
+        const __VLS_387 = __VLS_asFunctionalComponent(__VLS_386, new __VLS_386({
             size: ((17)),
         }));
-        const __VLS_352 = __VLS_351({
+        const __VLS_388 = __VLS_387({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_351));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_387));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -3329,17 +3581,17 @@ function __VLS_template() {
                 ...{ class: ("empty") },
                 ...{ style: ({}) },
             });
-            const __VLS_356 = {}.FolderOpen;
+            const __VLS_392 = {}.FolderOpen;
             /** @type { [typeof __VLS_components.FolderOpen, ] } */ ;
             // @ts-ignore
-            const __VLS_357 = __VLS_asFunctionalComponent(__VLS_356, new __VLS_356({
+            const __VLS_393 = __VLS_asFunctionalComponent(__VLS_392, new __VLS_392({
                 size: ((40)),
                 opacity: (".3"),
             }));
-            const __VLS_358 = __VLS_357({
+            const __VLS_394 = __VLS_393({
                 size: ((40)),
                 opacity: (".3"),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_357));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_393));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         }
     }
@@ -3357,15 +3609,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_362 = {}.Layers;
+        const __VLS_398 = {}.Layers;
         /** @type { [typeof __VLS_components.Layers, ] } */ ;
         // @ts-ignore
-        const __VLS_363 = __VLS_asFunctionalComponent(__VLS_362, new __VLS_362({
+        const __VLS_399 = __VLS_asFunctionalComponent(__VLS_398, new __VLS_398({
             size: ((17)),
         }));
-        const __VLS_364 = __VLS_363({
+        const __VLS_400 = __VLS_399({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_363));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_399));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -3391,7 +3643,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3415,7 +3669,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3439,17 +3695,17 @@ function __VLS_template() {
                 ...{ class: ("empty") },
                 ...{ style: ({}) },
             });
-            const __VLS_368 = {}.Layers;
+            const __VLS_404 = {}.Layers;
             /** @type { [typeof __VLS_components.Layers, ] } */ ;
             // @ts-ignore
-            const __VLS_369 = __VLS_asFunctionalComponent(__VLS_368, new __VLS_368({
+            const __VLS_405 = __VLS_asFunctionalComponent(__VLS_404, new __VLS_404({
                 size: ((40)),
                 opacity: (".3"),
             }));
-            const __VLS_370 = __VLS_369({
+            const __VLS_406 = __VLS_405({
                 size: ((40)),
                 opacity: (".3"),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_369));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_405));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         }
     }
@@ -3467,15 +3723,15 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: ({}) },
         });
-        const __VLS_374 = {}.Clapperboard;
+        const __VLS_410 = {}.Clapperboard;
         /** @type { [typeof __VLS_components.Clapperboard, ] } */ ;
         // @ts-ignore
-        const __VLS_375 = __VLS_asFunctionalComponent(__VLS_374, new __VLS_374({
+        const __VLS_411 = __VLS_asFunctionalComponent(__VLS_410, new __VLS_410({
             size: ((17)),
         }));
-        const __VLS_376 = __VLS_375({
+        const __VLS_412 = __VLS_411({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_375));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_411));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -3491,15 +3747,15 @@ function __VLS_template() {
             ...{ class: ("panel-icon") },
             ...{ style: ({}) },
         });
-        const __VLS_380 = {}.Clapperboard;
+        const __VLS_416 = {}.Clapperboard;
         /** @type { [typeof __VLS_components.Clapperboard, ] } */ ;
         // @ts-ignore
-        const __VLS_381 = __VLS_asFunctionalComponent(__VLS_380, new __VLS_380({
+        const __VLS_417 = __VLS_asFunctionalComponent(__VLS_416, new __VLS_416({
             size: ((15)),
         }));
-        const __VLS_382 = __VLS_381({
+        const __VLS_418 = __VLS_417({
             size: ((15)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_381));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_417));
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -3519,7 +3775,9 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                                return;
+                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -3587,15 +3845,15 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
             disabled: ((__VLS_ctx.composing)),
         });
-        const __VLS_386 = {}.Clapperboard;
+        const __VLS_422 = {}.Clapperboard;
         /** @type { [typeof __VLS_components.Clapperboard, ] } */ ;
         // @ts-ignore
-        const __VLS_387 = __VLS_asFunctionalComponent(__VLS_386, new __VLS_386({
+        const __VLS_423 = __VLS_asFunctionalComponent(__VLS_422, new __VLS_422({
             size: ((16)),
         }));
-        const __VLS_388 = __VLS_387({
+        const __VLS_424 = __VLS_423({
             size: ((16)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_387));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_423));
         (__VLS_ctx.composing ? '合成中（约1分钟）…' : '一键成片');
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("result-panel") },
@@ -3626,15 +3884,15 @@ function __VLS_template() {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("empty-icon") },
             });
-            const __VLS_392 = {}.Clapperboard;
+            const __VLS_428 = {}.Clapperboard;
             /** @type { [typeof __VLS_components.Clapperboard, ] } */ ;
             // @ts-ignore
-            const __VLS_393 = __VLS_asFunctionalComponent(__VLS_392, new __VLS_392({
+            const __VLS_429 = __VLS_asFunctionalComponent(__VLS_428, new __VLS_428({
                 size: ((26)),
             }));
-            const __VLS_394 = __VLS_393({
+            const __VLS_430 = __VLS_429({
                 size: ((26)),
-            }, ...__VLS_functionalComponentArgsRest(__VLS_393));
+            }, ...__VLS_functionalComponentArgsRest(__VLS_429));
             __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
         }
@@ -3653,14 +3911,14 @@ function __VLS_template() {
             ...{ class: ("tool-icon sm") },
             ...{ style: (({ background: __VLS_ctx.selected.color + '22', color: __VLS_ctx.selected.color })) },
         });
-        const __VLS_398 = ((__VLS_ctx.selected.icon));
+        const __VLS_434 = ((__VLS_ctx.selected.icon));
         // @ts-ignore
-        const __VLS_399 = __VLS_asFunctionalComponent(__VLS_398, new __VLS_398({
+        const __VLS_435 = __VLS_asFunctionalComponent(__VLS_434, new __VLS_434({
             size: ((17)),
         }));
-        const __VLS_400 = __VLS_399({
+        const __VLS_436 = __VLS_435({
             size: ((17)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_399));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_435));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         (__VLS_ctx.selected.title);
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
@@ -3672,36 +3930,36 @@ function __VLS_template() {
             ...{ class: ("empty") },
             ...{ style: ({}) },
         });
-        const __VLS_404 = ((__VLS_ctx.selected.icon));
+        const __VLS_440 = ((__VLS_ctx.selected.icon));
         // @ts-ignore
-        const __VLS_405 = __VLS_asFunctionalComponent(__VLS_404, new __VLS_404({
+        const __VLS_441 = __VLS_asFunctionalComponent(__VLS_440, new __VLS_440({
             size: ((50)),
             opacity: (".3"),
         }));
-        const __VLS_406 = __VLS_405({
+        const __VLS_442 = __VLS_441({
             size: ((50)),
             opacity: (".3"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_405));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_441));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
     }
-    const __VLS_410 = {}.ElDialog;
+    const __VLS_446 = {}.ElDialog;
     /** @type { [typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ] } */ ;
     // @ts-ignore
-    const __VLS_411 = __VLS_asFunctionalComponent(__VLS_410, new __VLS_410({
+    const __VLS_447 = __VLS_asFunctionalComponent(__VLS_446, new __VLS_446({
         modelValue: ((__VLS_ctx.drawPreviewOpen)),
         title: ("图片预览"),
         width: ("min(92vw, 900px)"),
         ...{ class: ("draw-preview-dialog") },
         destroyOnClose: (true),
     }));
-    const __VLS_412 = __VLS_411({
+    const __VLS_448 = __VLS_447({
         modelValue: ((__VLS_ctx.drawPreviewOpen)),
         title: ("图片预览"),
         width: ("min(92vw, 900px)"),
         ...{ class: ("draw-preview-dialog") },
         destroyOnClose: (true),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_411));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_447));
     if (__VLS_ctx.drawUrl) {
         __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
             src: ((__VLS_ctx.drawUrl)),
@@ -3711,7 +3969,7 @@ function __VLS_template() {
     }
     __VLS_elementAsFunction(__VLS_intrinsicElements.template, __VLS_intrinsicElements.template)({});
     {
-        const { footer: __VLS_thisSlot } = __VLS_415.slots;
+        const { footer: __VLS_thisSlot } = __VLS_451.slots;
         __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
             ...{ onClick: (__VLS_ctx.downloadDraw) },
             ...{ class: ("ghost-btn") },
@@ -3723,24 +3981,24 @@ function __VLS_template() {
             ...{ class: ("gen-btn") },
         });
     }
-    var __VLS_415;
-    const __VLS_416 = {}.ElDialog;
+    var __VLS_451;
+    const __VLS_452 = {}.ElDialog;
     /** @type { [typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ] } */ ;
     // @ts-ignore
-    const __VLS_417 = __VLS_asFunctionalComponent(__VLS_416, new __VLS_416({
+    const __VLS_453 = __VLS_asFunctionalComponent(__VLS_452, new __VLS_452({
         modelValue: ((__VLS_ctx.productTemplateOpen)),
         title: ("选择商品主图模板"),
         width: ("min(94vw, 980px)"),
         ...{ class: ("product-template-dialog") },
         destroyOnClose: (true),
     }));
-    const __VLS_418 = __VLS_417({
+    const __VLS_454 = __VLS_453({
         modelValue: ((__VLS_ctx.productTemplateOpen)),
         title: ("选择商品主图模板"),
         width: ("min(94vw, 980px)"),
         ...{ class: ("product-template-dialog") },
         destroyOnClose: (true),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_417));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_453));
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("template-filter-row") },
     });
@@ -3824,36 +4082,36 @@ function __VLS_template() {
         (tpl.category);
         (tpl.scene);
     }
-    __VLS_421.slots.default;
-    var __VLS_421;
-    const __VLS_422 = {}.ElDialog;
+    __VLS_457.slots.default;
+    var __VLS_457;
+    const __VLS_458 = {}.ElDialog;
     /** @type { [typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ] } */ ;
     // @ts-ignore
-    const __VLS_423 = __VLS_asFunctionalComponent(__VLS_422, new __VLS_422({
+    const __VLS_459 = __VLS_asFunctionalComponent(__VLS_458, new __VLS_458({
         modelValue: ((__VLS_ctx.loginOpen)),
         width: ("400px"),
         ...{ class: ("auth-dialog") },
     }));
-    const __VLS_424 = __VLS_423({
+    const __VLS_460 = __VLS_459({
         modelValue: ((__VLS_ctx.loginOpen)),
         width: ("400px"),
         ...{ class: ("auth-dialog") },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_423));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_459));
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("auth-hero") },
     });
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("brand-mark big") },
     });
-    const __VLS_428 = {}.Zap;
+    const __VLS_464 = {}.Zap;
     /** @type { [typeof __VLS_components.Zap, ] } */ ;
     // @ts-ignore
-    const __VLS_429 = __VLS_asFunctionalComponent(__VLS_428, new __VLS_428({
+    const __VLS_465 = __VLS_asFunctionalComponent(__VLS_464, new __VLS_464({
         size: ((26)),
     }));
-    const __VLS_430 = __VLS_429({
+    const __VLS_466 = __VLS_465({
         size: ((26)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_429));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_465));
     __VLS_elementAsFunction(__VLS_intrinsicElements.h2, __VLS_intrinsicElements.h2)({});
     __VLS_elementAsFunction(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
     (__VLS_ctx.loginMode === 'login' ? '登录后使用完整 AI 创作能力' : '注册账号，开始创作');
@@ -3861,39 +4119,39 @@ function __VLS_template() {
         ...{ class: ("auth-form") },
     });
     if (__VLS_ctx.loginMode === 'register') {
-        const __VLS_434 = {}.ElInput;
+        const __VLS_470 = {}.ElInput;
         /** @type { [typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ] } */ ;
         // @ts-ignore
-        const __VLS_435 = __VLS_asFunctionalComponent(__VLS_434, new __VLS_434({
+        const __VLS_471 = __VLS_asFunctionalComponent(__VLS_470, new __VLS_470({
             modelValue: ((__VLS_ctx.authEmail)),
             placeholder: ("邮箱"),
             size: ("large"),
         }));
-        const __VLS_436 = __VLS_435({
+        const __VLS_472 = __VLS_471({
             modelValue: ((__VLS_ctx.authEmail)),
             placeholder: ("邮箱"),
             size: ("large"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_435));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_471));
     }
     else {
-        const __VLS_440 = {}.ElInput;
+        const __VLS_476 = {}.ElInput;
         /** @type { [typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ] } */ ;
         // @ts-ignore
-        const __VLS_441 = __VLS_asFunctionalComponent(__VLS_440, new __VLS_440({
+        const __VLS_477 = __VLS_asFunctionalComponent(__VLS_476, new __VLS_476({
             modelValue: ((__VLS_ctx.authUsername)),
             placeholder: ("邮箱"),
             size: ("large"),
         }));
-        const __VLS_442 = __VLS_441({
+        const __VLS_478 = __VLS_477({
             modelValue: ((__VLS_ctx.authUsername)),
             placeholder: ("邮箱"),
             size: ("large"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_441));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_477));
     }
-    const __VLS_446 = {}.ElInput;
+    const __VLS_482 = {}.ElInput;
     /** @type { [typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ] } */ ;
     // @ts-ignore
-    const __VLS_447 = __VLS_asFunctionalComponent(__VLS_446, new __VLS_446({
+    const __VLS_483 = __VLS_asFunctionalComponent(__VLS_482, new __VLS_482({
         ...{ 'onKeyup': {} },
         modelValue: ((__VLS_ctx.authPassword)),
         type: ("password"),
@@ -3901,98 +4159,98 @@ function __VLS_template() {
         placeholder: ("密码"),
         size: ("large"),
     }));
-    const __VLS_448 = __VLS_447({
+    const __VLS_484 = __VLS_483({
         ...{ 'onKeyup': {} },
         modelValue: ((__VLS_ctx.authPassword)),
         type: ("password"),
         showPassword: (true),
         placeholder: ("密码"),
         size: ("large"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_447));
-    let __VLS_452;
-    const __VLS_453 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_483));
+    let __VLS_488;
+    const __VLS_489 = {
         onKeyup: (__VLS_ctx.doAuth)
     };
-    let __VLS_449;
-    let __VLS_450;
-    var __VLS_451;
+    let __VLS_485;
+    let __VLS_486;
+    var __VLS_487;
     if (__VLS_ctx.loginMode === 'register') {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("code-row") },
         });
-        const __VLS_454 = {}.ElInput;
+        const __VLS_490 = {}.ElInput;
         /** @type { [typeof __VLS_components.ElInput, typeof __VLS_components.elInput, ] } */ ;
         // @ts-ignore
-        const __VLS_455 = __VLS_asFunctionalComponent(__VLS_454, new __VLS_454({
+        const __VLS_491 = __VLS_asFunctionalComponent(__VLS_490, new __VLS_490({
             ...{ 'onKeyup': {} },
             modelValue: ((__VLS_ctx.emailCode)),
             placeholder: ("邮箱验证码"),
             size: ("large"),
         }));
-        const __VLS_456 = __VLS_455({
+        const __VLS_492 = __VLS_491({
             ...{ 'onKeyup': {} },
             modelValue: ((__VLS_ctx.emailCode)),
             placeholder: ("邮箱验证码"),
             size: ("large"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_455));
-        let __VLS_460;
-        const __VLS_461 = {
+        }, ...__VLS_functionalComponentArgsRest(__VLS_491));
+        let __VLS_496;
+        const __VLS_497 = {
             onKeyup: (__VLS_ctx.doAuth)
         };
-        let __VLS_457;
-        let __VLS_458;
-        var __VLS_459;
-        const __VLS_462 = {}.ElButton;
+        let __VLS_493;
+        let __VLS_494;
+        var __VLS_495;
+        const __VLS_498 = {}.ElButton;
         /** @type { [typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ] } */ ;
         // @ts-ignore
-        const __VLS_463 = __VLS_asFunctionalComponent(__VLS_462, new __VLS_462({
+        const __VLS_499 = __VLS_asFunctionalComponent(__VLS_498, new __VLS_498({
             ...{ 'onClick': {} },
             ...{ class: ("code-btn") },
             loading: ((__VLS_ctx.codeSending)),
             disabled: ((__VLS_ctx.codeCountdown > 0)),
         }));
-        const __VLS_464 = __VLS_463({
+        const __VLS_500 = __VLS_499({
             ...{ 'onClick': {} },
             ...{ class: ("code-btn") },
             loading: ((__VLS_ctx.codeSending)),
             disabled: ((__VLS_ctx.codeCountdown > 0)),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_463));
-        let __VLS_468;
-        const __VLS_469 = {
+        }, ...__VLS_functionalComponentArgsRest(__VLS_499));
+        let __VLS_504;
+        const __VLS_505 = {
             onClick: (__VLS_ctx.sendEmailCode)
         };
-        let __VLS_465;
-        let __VLS_466;
+        let __VLS_501;
+        let __VLS_502;
         (__VLS_ctx.codeCountdown > 0 ? `重新获取 ${__VLS_ctx.codeCountdown}s` : '获取验证码');
-        __VLS_467.slots.default;
-        var __VLS_467;
+        __VLS_503.slots.default;
+        var __VLS_503;
     }
-    const __VLS_470 = {}.ElButton;
+    const __VLS_506 = {}.ElButton;
     /** @type { [typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ] } */ ;
     // @ts-ignore
-    const __VLS_471 = __VLS_asFunctionalComponent(__VLS_470, new __VLS_470({
+    const __VLS_507 = __VLS_asFunctionalComponent(__VLS_506, new __VLS_506({
         ...{ 'onClick': {} },
         type: ("primary"),
         size: ("large"),
         ...{ class: ("auth-btn") },
         loading: ((__VLS_ctx.authLoading)),
     }));
-    const __VLS_472 = __VLS_471({
+    const __VLS_508 = __VLS_507({
         ...{ 'onClick': {} },
         type: ("primary"),
         size: ("large"),
         ...{ class: ("auth-btn") },
         loading: ((__VLS_ctx.authLoading)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_471));
-    let __VLS_476;
-    const __VLS_477 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_507));
+    let __VLS_512;
+    const __VLS_513 = {
         onClick: (__VLS_ctx.doAuth)
     };
-    let __VLS_473;
-    let __VLS_474;
+    let __VLS_509;
+    let __VLS_510;
     (__VLS_ctx.loginMode === 'login' ? '登 录' : '注 册');
-    __VLS_475.slots.default;
-    var __VLS_475;
+    __VLS_511.slots.default;
+    var __VLS_511;
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("auth-switch") },
     });
@@ -4004,23 +4262,23 @@ function __VLS_template() {
             } },
     });
     (__VLS_ctx.loginMode === 'login' ? '立即注册' : '去登录');
-    __VLS_427.slots.default;
-    var __VLS_427;
-    const __VLS_478 = {}.ElDialog;
+    __VLS_463.slots.default;
+    var __VLS_463;
+    const __VLS_514 = {}.ElDialog;
     /** @type { [typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ] } */ ;
     // @ts-ignore
-    const __VLS_479 = __VLS_asFunctionalComponent(__VLS_478, new __VLS_478({
+    const __VLS_515 = __VLS_asFunctionalComponent(__VLS_514, new __VLS_514({
         modelValue: ((__VLS_ctx.historyOpen)),
         width: ("760px"),
         ...{ class: ("history-dialog") },
         title: ("历史记录"),
     }));
-    const __VLS_480 = __VLS_479({
+    const __VLS_516 = __VLS_515({
         modelValue: ((__VLS_ctx.historyOpen)),
         width: ("760px"),
         ...{ class: ("history-dialog") },
         title: ("历史记录"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_479));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_515));
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("history-body") },
     });
@@ -4051,17 +4309,17 @@ function __VLS_template() {
             ...{ class: ("empty") },
             ...{ style: ({}) },
         });
-        const __VLS_484 = {}.FolderOpen;
+        const __VLS_520 = {}.FolderOpen;
         /** @type { [typeof __VLS_components.FolderOpen, ] } */ ;
         // @ts-ignore
-        const __VLS_485 = __VLS_asFunctionalComponent(__VLS_484, new __VLS_484({
+        const __VLS_521 = __VLS_asFunctionalComponent(__VLS_520, new __VLS_520({
             size: ((36)),
             opacity: (".3"),
         }));
-        const __VLS_486 = __VLS_485({
+        const __VLS_522 = __VLS_521({
             size: ((36)),
             opacity: (".3"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_485));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_521));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
     }
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -4090,36 +4348,36 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("empty") },
         });
-        const __VLS_490 = {}.History;
+        const __VLS_526 = {}.History;
         /** @type { [typeof __VLS_components.History, ] } */ ;
         // @ts-ignore
-        const __VLS_491 = __VLS_asFunctionalComponent(__VLS_490, new __VLS_490({
+        const __VLS_527 = __VLS_asFunctionalComponent(__VLS_526, new __VLS_526({
             size: ((36)),
             opacity: (".3"),
         }));
-        const __VLS_492 = __VLS_491({
+        const __VLS_528 = __VLS_527({
             size: ((36)),
             opacity: (".3"),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_491));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_527));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
     }
-    __VLS_483.slots.default;
-    var __VLS_483;
-    const __VLS_496 = {}.ElDialog;
+    __VLS_519.slots.default;
+    var __VLS_519;
+    const __VLS_532 = {}.ElDialog;
     /** @type { [typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, typeof __VLS_components.ElDialog, typeof __VLS_components.elDialog, ] } */ ;
     // @ts-ignore
-    const __VLS_497 = __VLS_asFunctionalComponent(__VLS_496, new __VLS_496({
+    const __VLS_533 = __VLS_asFunctionalComponent(__VLS_532, new __VLS_532({
         modelValue: ((__VLS_ctx.accountOpen)),
         width: ("820px"),
         ...{ class: ("account-dialog") },
         title: ("我的账户"),
     }));
-    const __VLS_498 = __VLS_497({
+    const __VLS_534 = __VLS_533({
         modelValue: ((__VLS_ctx.accountOpen)),
         width: ("820px"),
         ...{ class: ("account-dialog") },
         title: ("我的账户"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_497));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_533));
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("account-summary") },
     });
@@ -4131,95 +4389,95 @@ function __VLS_template() {
     __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
     __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
     (__VLS_ctx.userName);
-    const __VLS_502 = {}.ElButton;
+    const __VLS_538 = {}.ElButton;
     /** @type { [typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ] } */ ;
     // @ts-ignore
-    const __VLS_503 = __VLS_asFunctionalComponent(__VLS_502, new __VLS_502({
+    const __VLS_539 = __VLS_asFunctionalComponent(__VLS_538, new __VLS_538({
         ...{ 'onClick': {} },
         ...{ class: ("ghost-btn") },
         icon: ((__VLS_ctx.LogOut)),
     }));
-    const __VLS_504 = __VLS_503({
+    const __VLS_540 = __VLS_539({
         ...{ 'onClick': {} },
         ...{ class: ("ghost-btn") },
         icon: ((__VLS_ctx.LogOut)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_503));
-    let __VLS_508;
-    const __VLS_509 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_539));
+    let __VLS_544;
+    const __VLS_545 = {
         onClick: (...[$event]) => {
             __VLS_ctx.logout();
             __VLS_ctx.accountOpen = false;
         }
     };
-    let __VLS_505;
-    let __VLS_506;
-    __VLS_507.slots.default;
-    var __VLS_507;
-    const __VLS_510 = {}.ElTabs;
+    let __VLS_541;
+    let __VLS_542;
+    __VLS_543.slots.default;
+    var __VLS_543;
+    const __VLS_546 = {}.ElTabs;
     /** @type { [typeof __VLS_components.ElTabs, typeof __VLS_components.elTabs, typeof __VLS_components.ElTabs, typeof __VLS_components.elTabs, ] } */ ;
     // @ts-ignore
-    const __VLS_511 = __VLS_asFunctionalComponent(__VLS_510, new __VLS_510({
+    const __VLS_547 = __VLS_asFunctionalComponent(__VLS_546, new __VLS_546({
         ...{ 'onTabChange': {} },
         modelValue: ((__VLS_ctx.accountTab)),
     }));
-    const __VLS_512 = __VLS_511({
+    const __VLS_548 = __VLS_547({
         ...{ 'onTabChange': {} },
         modelValue: ((__VLS_ctx.accountTab)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_511));
-    let __VLS_516;
-    const __VLS_517 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_547));
+    let __VLS_552;
+    const __VLS_553 = {
         onTabChange: (__VLS_ctx.loadAccountCenter)
     };
-    let __VLS_513;
-    let __VLS_514;
-    const __VLS_518 = {}.ElTabPane;
+    let __VLS_549;
+    let __VLS_550;
+    const __VLS_554 = {}.ElTabPane;
     /** @type { [typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ] } */ ;
     // @ts-ignore
-    const __VLS_519 = __VLS_asFunctionalComponent(__VLS_518, new __VLS_518({
+    const __VLS_555 = __VLS_asFunctionalComponent(__VLS_554, new __VLS_554({
         label: ("余额充值"),
         name: ("recharge"),
     }));
-    const __VLS_520 = __VLS_519({
+    const __VLS_556 = __VLS_555({
         label: ("余额充值"),
         name: ("recharge"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_519));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_555));
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("payment-types") },
     });
     __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-    const __VLS_524 = {}.ElRadioGroup;
+    const __VLS_560 = {}.ElRadioGroup;
     /** @type { [typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, ] } */ ;
     // @ts-ignore
-    const __VLS_525 = __VLS_asFunctionalComponent(__VLS_524, new __VLS_524({
+    const __VLS_561 = __VLS_asFunctionalComponent(__VLS_560, new __VLS_560({
         modelValue: ((__VLS_ctx.paymentType)),
     }));
-    const __VLS_526 = __VLS_525({
+    const __VLS_562 = __VLS_561({
         modelValue: ((__VLS_ctx.paymentType)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_525));
-    const __VLS_530 = {}.ElRadioButton;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_561));
+    const __VLS_566 = {}.ElRadioButton;
     /** @type { [typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ] } */ ;
     // @ts-ignore
-    const __VLS_531 = __VLS_asFunctionalComponent(__VLS_530, new __VLS_530({
+    const __VLS_567 = __VLS_asFunctionalComponent(__VLS_566, new __VLS_566({
         value: ("alipay"),
     }));
-    const __VLS_532 = __VLS_531({
+    const __VLS_568 = __VLS_567({
         value: ("alipay"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_531));
-    __VLS_535.slots.default;
-    var __VLS_535;
-    const __VLS_536 = {}.ElRadioButton;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_567));
+    __VLS_571.slots.default;
+    var __VLS_571;
+    const __VLS_572 = {}.ElRadioButton;
     /** @type { [typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ] } */ ;
     // @ts-ignore
-    const __VLS_537 = __VLS_asFunctionalComponent(__VLS_536, new __VLS_536({
+    const __VLS_573 = __VLS_asFunctionalComponent(__VLS_572, new __VLS_572({
         value: ("wxpay"),
     }));
-    const __VLS_538 = __VLS_537({
+    const __VLS_574 = __VLS_573({
         value: ("wxpay"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_537));
-    __VLS_541.slots.default;
-    var __VLS_541;
-    __VLS_529.slots.default;
-    var __VLS_529;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_573));
+    __VLS_577.slots.default;
+    var __VLS_577;
+    __VLS_565.slots.default;
+    var __VLS_565;
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: ("package-grid") },
     });
@@ -4244,10 +4502,10 @@ function __VLS_template() {
         ...{ class: ("custom-recharge") },
     });
     __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-    const __VLS_542 = {}.ElInputNumber;
+    const __VLS_578 = {}.ElInputNumber;
     /** @type { [typeof __VLS_components.ElInputNumber, typeof __VLS_components.elInputNumber, ] } */ ;
     // @ts-ignore
-    const __VLS_543 = __VLS_asFunctionalComponent(__VLS_542, new __VLS_542({
+    const __VLS_579 = __VLS_asFunctionalComponent(__VLS_578, new __VLS_578({
         modelValue: ((__VLS_ctx.customAmount)),
         min: ((1)),
         max: ((10000)),
@@ -4255,221 +4513,221 @@ function __VLS_template() {
         controlsPosition: ("right"),
         ...{ style: ({}) },
     }));
-    const __VLS_544 = __VLS_543({
+    const __VLS_580 = __VLS_579({
         modelValue: ((__VLS_ctx.customAmount)),
         min: ((1)),
         max: ((10000)),
         step: ((10)),
         controlsPosition: ("right"),
         ...{ style: ({}) },
-    }, ...__VLS_functionalComponentArgsRest(__VLS_543));
-    const __VLS_548 = {}.ElButton;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_579));
+    const __VLS_584 = {}.ElButton;
     /** @type { [typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ] } */ ;
     // @ts-ignore
-    const __VLS_549 = __VLS_asFunctionalComponent(__VLS_548, new __VLS_548({
+    const __VLS_585 = __VLS_asFunctionalComponent(__VLS_584, new __VLS_584({
         ...{ 'onClick': {} },
         type: ("primary"),
         loading: ((__VLS_ctx.customRechargeLoading)),
     }));
-    const __VLS_550 = __VLS_549({
+    const __VLS_586 = __VLS_585({
         ...{ 'onClick': {} },
         type: ("primary"),
         loading: ((__VLS_ctx.customRechargeLoading)),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_549));
-    let __VLS_554;
-    const __VLS_555 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_585));
+    let __VLS_590;
+    const __VLS_591 = {
         onClick: (__VLS_ctx.startCustomRecharge)
     };
-    let __VLS_551;
-    let __VLS_552;
-    __VLS_553.slots.default;
-    var __VLS_553;
+    let __VLS_587;
+    let __VLS_588;
+    __VLS_589.slots.default;
+    var __VLS_589;
     __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
     (__VLS_ctx.customRate);
-    __VLS_523.slots.default;
-    var __VLS_523;
-    const __VLS_556 = {}.ElTabPane;
+    __VLS_559.slots.default;
+    var __VLS_559;
+    const __VLS_592 = {}.ElTabPane;
     /** @type { [typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ] } */ ;
     // @ts-ignore
-    const __VLS_557 = __VLS_asFunctionalComponent(__VLS_556, new __VLS_556({
-        label: ("充值记录"),
-        name: ("orders"),
-    }));
-    const __VLS_558 = __VLS_557({
-        label: ("充值记录"),
-        name: ("orders"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_557));
-    const __VLS_562 = {}.ElTable;
-    /** @type { [typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ] } */ ;
-    // @ts-ignore
-    const __VLS_563 = __VLS_asFunctionalComponent(__VLS_562, new __VLS_562({
-        data: ((__VLS_ctx.orders)),
-        height: ("360"),
-    }));
-    const __VLS_564 = __VLS_563({
-        data: ((__VLS_ctx.orders)),
-        height: ("360"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_563));
-    const __VLS_568 = {}.ElTableColumn;
-    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
-    // @ts-ignore
-    const __VLS_569 = __VLS_asFunctionalComponent(__VLS_568, new __VLS_568({
-        prop: ("order_no"),
-        label: ("订单号"),
-        minWidth: ("200"),
-    }));
-    const __VLS_570 = __VLS_569({
-        prop: ("order_no"),
-        label: ("订单号"),
-        minWidth: ("200"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_569));
-    const __VLS_574 = {}.ElTableColumn;
-    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
-    // @ts-ignore
-    const __VLS_575 = __VLS_asFunctionalComponent(__VLS_574, new __VLS_574({
-        prop: ("package_name"),
-        label: ("套餐"),
-    }));
-    const __VLS_576 = __VLS_575({
-        prop: ("package_name"),
-        label: ("套餐"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_575));
-    const __VLS_580 = {}.ElTableColumn;
-    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
-    // @ts-ignore
-    const __VLS_581 = __VLS_asFunctionalComponent(__VLS_580, new __VLS_580({
-        prop: ("amount"),
-        label: ("金额"),
-        width: ("90"),
-    }));
-    const __VLS_582 = __VLS_581({
-        prop: ("amount"),
-        label: ("金额"),
-        width: ("90"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_581));
-    const __VLS_586 = {}.ElTableColumn;
-    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
-    // @ts-ignore
-    const __VLS_587 = __VLS_asFunctionalComponent(__VLS_586, new __VLS_586({
-        prop: ("credits"),
-        label: ("到账"),
-        width: ("90"),
-    }));
-    const __VLS_588 = __VLS_587({
-        prop: ("credits"),
-        label: ("到账"),
-        width: ("90"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_587));
-    const __VLS_592 = {}.ElTableColumn;
-    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
-    // @ts-ignore
     const __VLS_593 = __VLS_asFunctionalComponent(__VLS_592, new __VLS_592({
-        prop: ("status"),
-        label: ("状态"),
-        width: ("100"),
+        label: ("充值记录"),
+        name: ("orders"),
     }));
     const __VLS_594 = __VLS_593({
-        prop: ("status"),
-        label: ("状态"),
-        width: ("100"),
+        label: ("充值记录"),
+        name: ("orders"),
     }, ...__VLS_functionalComponentArgsRest(__VLS_593));
-    __VLS_elementAsFunction(__VLS_intrinsicElements.template, __VLS_intrinsicElements.template)({});
-    {
-        const { default: __VLS_thisSlot } = __VLS_597.slots;
-        const [scope] = __VLS_getSlotParams(__VLS_thisSlot);
-        const __VLS_598 = {}.ElTag;
-        /** @type { [typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ] } */ ;
-        // @ts-ignore
-        const __VLS_599 = __VLS_asFunctionalComponent(__VLS_598, new __VLS_598({
-            type: ((scope.row.status === 'PAID' ? 'success' : 'warning')),
-        }));
-        const __VLS_600 = __VLS_599({
-            type: ((scope.row.status === 'PAID' ? 'success' : 'warning')),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_599));
-        (scope.row.status === 'PAID' ? '已支付' : '待支付');
-        __VLS_603.slots.default;
-        var __VLS_603;
-    }
-    var __VLS_597;
+    const __VLS_598 = {}.ElTable;
+    /** @type { [typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ] } */ ;
+    // @ts-ignore
+    const __VLS_599 = __VLS_asFunctionalComponent(__VLS_598, new __VLS_598({
+        data: ((__VLS_ctx.orders)),
+        height: ("360"),
+    }));
+    const __VLS_600 = __VLS_599({
+        data: ((__VLS_ctx.orders)),
+        height: ("360"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_599));
     const __VLS_604 = {}.ElTableColumn;
     /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
     const __VLS_605 = __VLS_asFunctionalComponent(__VLS_604, new __VLS_604({
-        prop: ("create_time"),
-        label: ("创建时间"),
-        minWidth: ("160"),
+        prop: ("order_no"),
+        label: ("订单号"),
+        minWidth: ("200"),
     }));
     const __VLS_606 = __VLS_605({
-        prop: ("create_time"),
-        label: ("创建时间"),
-        minWidth: ("160"),
+        prop: ("order_no"),
+        label: ("订单号"),
+        minWidth: ("200"),
     }, ...__VLS_functionalComponentArgsRest(__VLS_605));
-    __VLS_567.slots.default;
-    var __VLS_567;
-    __VLS_561.slots.default;
-    var __VLS_561;
-    const __VLS_610 = {}.ElTabPane;
-    /** @type { [typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ] } */ ;
+    const __VLS_610 = {}.ElTableColumn;
+    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
     const __VLS_611 = __VLS_asFunctionalComponent(__VLS_610, new __VLS_610({
-        label: ("余额流水"),
-        name: ("flows"),
+        prop: ("package_name"),
+        label: ("套餐"),
     }));
     const __VLS_612 = __VLS_611({
-        label: ("余额流水"),
-        name: ("flows"),
+        prop: ("package_name"),
+        label: ("套餐"),
     }, ...__VLS_functionalComponentArgsRest(__VLS_611));
-    const __VLS_616 = {}.ElTable;
-    /** @type { [typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ] } */ ;
+    const __VLS_616 = {}.ElTableColumn;
+    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
     const __VLS_617 = __VLS_asFunctionalComponent(__VLS_616, new __VLS_616({
-        data: ((__VLS_ctx.creditFlows)),
-        height: ("360"),
+        prop: ("amount"),
+        label: ("金额"),
+        width: ("90"),
     }));
     const __VLS_618 = __VLS_617({
-        data: ((__VLS_ctx.creditFlows)),
-        height: ("360"),
+        prop: ("amount"),
+        label: ("金额"),
+        width: ("90"),
     }, ...__VLS_functionalComponentArgsRest(__VLS_617));
     const __VLS_622 = {}.ElTableColumn;
     /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
     const __VLS_623 = __VLS_asFunctionalComponent(__VLS_622, new __VLS_622({
-        prop: ("create_time"),
-        label: ("时间"),
-        minWidth: ("160"),
+        prop: ("credits"),
+        label: ("到账"),
+        width: ("90"),
     }));
     const __VLS_624 = __VLS_623({
+        prop: ("credits"),
+        label: ("到账"),
+        width: ("90"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_623));
+    const __VLS_628 = {}.ElTableColumn;
+    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
+    // @ts-ignore
+    const __VLS_629 = __VLS_asFunctionalComponent(__VLS_628, new __VLS_628({
+        prop: ("status"),
+        label: ("状态"),
+        width: ("100"),
+    }));
+    const __VLS_630 = __VLS_629({
+        prop: ("status"),
+        label: ("状态"),
+        width: ("100"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_629));
+    __VLS_elementAsFunction(__VLS_intrinsicElements.template, __VLS_intrinsicElements.template)({});
+    {
+        const { default: __VLS_thisSlot } = __VLS_633.slots;
+        const [scope] = __VLS_getSlotParams(__VLS_thisSlot);
+        const __VLS_634 = {}.ElTag;
+        /** @type { [typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ] } */ ;
+        // @ts-ignore
+        const __VLS_635 = __VLS_asFunctionalComponent(__VLS_634, new __VLS_634({
+            type: ((scope.row.status === 'PAID' ? 'success' : 'warning')),
+        }));
+        const __VLS_636 = __VLS_635({
+            type: ((scope.row.status === 'PAID' ? 'success' : 'warning')),
+        }, ...__VLS_functionalComponentArgsRest(__VLS_635));
+        (scope.row.status === 'PAID' ? '已支付' : '待支付');
+        __VLS_639.slots.default;
+        var __VLS_639;
+    }
+    var __VLS_633;
+    const __VLS_640 = {}.ElTableColumn;
+    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
+    // @ts-ignore
+    const __VLS_641 = __VLS_asFunctionalComponent(__VLS_640, new __VLS_640({
+        prop: ("create_time"),
+        label: ("创建时间"),
+        minWidth: ("160"),
+    }));
+    const __VLS_642 = __VLS_641({
+        prop: ("create_time"),
+        label: ("创建时间"),
+        minWidth: ("160"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_641));
+    __VLS_603.slots.default;
+    var __VLS_603;
+    __VLS_597.slots.default;
+    var __VLS_597;
+    const __VLS_646 = {}.ElTabPane;
+    /** @type { [typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ] } */ ;
+    // @ts-ignore
+    const __VLS_647 = __VLS_asFunctionalComponent(__VLS_646, new __VLS_646({
+        label: ("余额流水"),
+        name: ("flows"),
+    }));
+    const __VLS_648 = __VLS_647({
+        label: ("余额流水"),
+        name: ("flows"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_647));
+    const __VLS_652 = {}.ElTable;
+    /** @type { [typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ] } */ ;
+    // @ts-ignore
+    const __VLS_653 = __VLS_asFunctionalComponent(__VLS_652, new __VLS_652({
+        data: ((__VLS_ctx.creditFlows)),
+        height: ("360"),
+    }));
+    const __VLS_654 = __VLS_653({
+        data: ((__VLS_ctx.creditFlows)),
+        height: ("360"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_653));
+    const __VLS_658 = {}.ElTableColumn;
+    /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
+    // @ts-ignore
+    const __VLS_659 = __VLS_asFunctionalComponent(__VLS_658, new __VLS_658({
         prop: ("create_time"),
         label: ("时间"),
         minWidth: ("160"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_623));
-    const __VLS_628 = {}.ElTableColumn;
+    }));
+    const __VLS_660 = __VLS_659({
+        prop: ("create_time"),
+        label: ("时间"),
+        minWidth: ("160"),
+    }, ...__VLS_functionalComponentArgsRest(__VLS_659));
+    const __VLS_664 = {}.ElTableColumn;
     /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
-    const __VLS_629 = __VLS_asFunctionalComponent(__VLS_628, new __VLS_628({
+    const __VLS_665 = __VLS_asFunctionalComponent(__VLS_664, new __VLS_664({
         prop: ("remark"),
         label: ("类型"),
     }));
-    const __VLS_630 = __VLS_629({
+    const __VLS_666 = __VLS_665({
         prop: ("remark"),
         label: ("类型"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_629));
-    const __VLS_634 = {}.ElTableColumn;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_665));
+    const __VLS_670 = {}.ElTableColumn;
     /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
-    const __VLS_635 = __VLS_asFunctionalComponent(__VLS_634, new __VLS_634({
+    const __VLS_671 = __VLS_asFunctionalComponent(__VLS_670, new __VLS_670({
         prop: ("change_amount"),
         label: ("变动"),
         width: ("90"),
     }));
-    const __VLS_636 = __VLS_635({
+    const __VLS_672 = __VLS_671({
         prop: ("change_amount"),
         label: ("变动"),
         width: ("90"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_635));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_671));
     __VLS_elementAsFunction(__VLS_intrinsicElements.template, __VLS_intrinsicElements.template)({});
     {
-        const { default: __VLS_thisSlot } = __VLS_639.slots;
+        const { default: __VLS_thisSlot } = __VLS_675.slots;
         const [scope] = __VLS_getSlotParams(__VLS_thisSlot);
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({
             ...{ class: ((scope.row.change_amount > 0 ? 'flow-plus' : 'flow-minus')) },
@@ -4477,29 +4735,29 @@ function __VLS_template() {
         (scope.row.change_amount > 0 ? '+' : '');
         (scope.row.change_amount);
     }
-    var __VLS_639;
-    const __VLS_640 = {}.ElTableColumn;
+    var __VLS_675;
+    const __VLS_676 = {}.ElTableColumn;
     /** @type { [typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ] } */ ;
     // @ts-ignore
-    const __VLS_641 = __VLS_asFunctionalComponent(__VLS_640, new __VLS_640({
+    const __VLS_677 = __VLS_asFunctionalComponent(__VLS_676, new __VLS_676({
         prop: ("balance"),
         label: ("余额"),
         width: ("90"),
     }));
-    const __VLS_642 = __VLS_641({
+    const __VLS_678 = __VLS_677({
         prop: ("balance"),
         label: ("余额"),
         width: ("90"),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_641));
-    __VLS_621.slots.default;
-    var __VLS_621;
-    __VLS_615.slots.default;
-    var __VLS_615;
-    __VLS_515.slots.default;
-    var __VLS_515;
-    __VLS_501.slots.default;
-    var __VLS_501;
-    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'model-select', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
+    }, ...__VLS_functionalComponentArgsRest(__VLS_677));
+    __VLS_657.slots.default;
+    var __VLS_657;
+    __VLS_651.slots.default;
+    var __VLS_651;
+    __VLS_551.slots.default;
+    var __VLS_551;
+    __VLS_537.slots.default;
+    var __VLS_537;
+    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-gpt-image', 'gpt-image-head', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-gallery', 'gpt-image-card', 'selected', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-composer-tools', 'gpt-model-picker', 'gpt-used-model', 'gpt-download', 'gpt-send', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'model-select', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
     var __VLS_slots;
     var $slots;
     let __VLS_inheritedAttrs;
@@ -4537,6 +4795,9 @@ const __VLS_self = (await import('vue')).defineComponent({
             Wallet: Wallet,
             ChevronDown: ChevronDown,
             History: History,
+            ArrowUp: ArrowUp,
+            Download: Download,
+            X: X,
             GROUPS: GROUPS,
             query: query,
             selected: selected,
@@ -4575,6 +4836,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             drawUrl: drawUrl,
             drawUsedModel: drawUsedModel,
             drawPreviewOpen: drawPreviewOpen,
+            gptImageInput: gptImageInput,
             drawHistory: drawHistory,
             productResults: productResults,
             drawMode: drawMode,
@@ -4663,6 +4925,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             chooseProductTemplate: chooseProductTemplate,
             selectDrawResult: selectDrawResult,
             reviseDraw: reviseDraw,
+            submitGptImage: submitGptImage,
+            startNewGptImage: startNewGptImage,
             downloadDraw: downloadDraw,
             previewDraw: previewDraw,
             toggleComposeImg: toggleComposeImg,

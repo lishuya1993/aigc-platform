@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History } from 'lucide-vue-next'
+import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History, ArrowUp, Download, X } from 'lucide-vue-next'
 import { secureFetch } from './secure-api'
 
 // ============ 工具定义 ============
@@ -90,6 +90,7 @@ const drawModel = ref('')
 const drawUrl = ref('')
 const drawUsedModel = ref('')
 const drawPreviewOpen = ref(false)
+const gptImageInput = ref('')
 type DrawResult = { url: string; prompt: string; model: string; createdAt: string }
 const drawHistory = ref<DrawResult[]>([])
 const productResults = ref<DrawResult[]>([])
@@ -646,6 +647,40 @@ async function reviseDraw() {
   } catch (e: any) { ElMessage.error(e.message || '图片修改失败') } finally { revisingDraw.value = false }
 }
 
+async function submitGptImage() {
+  const instruction = gptImageInput.value.trim()
+  if (drawing.value) return
+  if (!userToken.value) { openLogin(); return }
+  if (!instruction) { ElMessage.warning('请输入你想生成或修改的图片'); return }
+  if (!drawModel.value) { ElMessage.warning('后台尚未启用图片生成模型'); return }
+  const sourceUrl = drawUrl.value || undefined
+  const prompt = sourceUrl
+    ? `请基于当前图片进行修改。保持没有明确要求修改的主体、构图和细节不变，只执行以下要求：${instruction}`
+    : instruction
+  drawing.value = true
+  try {
+    const r = await apiFetch('/aigc/image/generate', {
+      method: 'POST',
+      body: JSON.stringify({ featureCode: 'gpt_image', model: drawModel.value, prompt, size: '1024x1024', imageUrl: sourceUrl })
+    })
+    const d = await r.json()
+    if (d.code !== 200) throw new Error(d.msg || '图片生成失败')
+    const item: DrawResult = { url: d.data.url, prompt: instruction, model: d.data.model || drawModel.value, createdAt: new Date().toLocaleString() }
+    drawHistory.value.unshift(item)
+    selectDrawResult(item)
+    balance.value = Number(d.data.balance)
+    gptImageInput.value = ''
+    ElMessage.success(sourceUrl ? '已根据选中图片生成新版本' : '图片生成完成')
+    loadWorks()
+  } catch (e: any) { ElMessage.error(e.message || '图片生成失败') } finally { drawing.value = false }
+}
+
+function startNewGptImage() {
+  drawUrl.value = ''
+  drawUsedModel.value = ''
+  gptImageInput.value = ''
+}
+
 async function downloadDraw() {
   if (!drawUrl.value) return
   try {
@@ -967,13 +1002,46 @@ async function pollPayment(orderNo: string) {
         </div>
       </div>
 
+      <!-- GPT 图片生成：对话式生图与改图 -->
+      <div v-else-if="selected.key === 'gpt_image'" class="workspace workspace-gpt-image">
+        <div class="gpt-image-head">
+          <div><h2>图片生成</h2><p>描述你想创建的图片，选中结果后继续输入即可修改</p></div>
+          <button v-if="drawUrl" class="gpt-new-image" @click="startNewGptImage"><Sparkles :size="15"/> 新图片</button>
+        </div>
+
+        <div class="gpt-image-stage">
+          <div v-if="!drawHistory.length" class="gpt-image-empty">
+            <span><Sparkles :size="25"/></span>
+            <h3>想象一张图片</h3>
+            <p>在下方输入一句话，AI 会为你生成</p>
+          </div>
+          <div v-else class="gpt-image-gallery">
+            <button v-for="(item, i) in drawHistory" :key="item.url + i" class="gpt-image-card" :class="{selected: item.url === drawUrl}" @click="selectDrawResult(item)">
+              <img :src="item.url" :alt="item.prompt"/>
+              <span v-if="item.url === drawUrl">继续修改此图</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="gpt-image-composer">
+          <div v-if="drawUrl" class="gpt-editing-chip"><img :src="drawUrl" alt="当前参考图"/><span>基于这张图片修改</span><button title="取消选中，生成全新图片" @click="startNewGptImage"><X :size="14"/></button></div>
+          <textarea v-model="gptImageInput" rows="1" :placeholder="drawUrl ? '告诉我需要怎样修改这张图片…' : '描述一张新图片…'" @keydown.enter.exact.prevent="submitGptImage"></textarea>
+          <div class="gpt-composer-tools">
+            <div class="gpt-model-picker"><Sparkles :size="14"/><select v-model="drawModel" aria-label="生图模型"><option v-for="model in drawModels" :key="model.model_code" :value="model.model_code">{{ model.model_name || model.model_code }}</option></select></div>
+            <span v-if="drawUsedModel" class="gpt-used-model">实际使用 {{ drawUsedModel }}</span>
+            <button class="gpt-download" :disabled="!drawUrl" title="下载选中图片" @click="downloadDraw"><Download :size="16"/></button>
+            <button class="gpt-send" :disabled="drawing || !gptImageInput.trim()" title="生成图片" @click="submitGptImage"><ArrowUp :size="18"/></button>
+          </div>
+        </div>
+      </div>
+
       <!-- AI 绘画 -->
-      <div v-else-if="['image', 'gpt_image', 'product_main'].includes(selected.key)" class="workspace workspace-image">
+      <div v-else-if="['image', 'product_main'].includes(selected.key)" class="workspace workspace-image">
         <div class="ws-head"><div class="ws-title"><span class="tool-icon sm" style="background:#f472b622;color:#f472b6"><Palette :size="17"/></span><b>{{ selected.key === 'product_main' ? '商品主图' : selected.key === 'gpt_image' ? 'GPT 图片生成' : 'AI 绘画' }}</b><small>{{ selected.key === 'product_main' ? '商品图 · 电商视觉生成' : selected.key === 'gpt_image' ? '提示词生图 · 选图修改 · 模型切换' : '文生图 · 模型后台配置' }}</small></div></div>
         <div class="ws-body">
           <div class="form-panel">
           <div class="panel-head"><span class="panel-icon" style="background:#f472b612;color:#f472b6"><Palette :size="15"/></span><div><b>绘画设置</b><small>描述画面，选择尺寸</small></div></div>
-            <div v-if="['image', 'gpt_image'].includes(selected.key)" class="draw-mode"><button :class="{picked: drawMode === 'text'}" @click="drawMode = 'text'">文生图</button><button :class="{picked: drawMode === 'product'}" @click="drawMode = 'product'">产品套图</button></div>
+            <div v-if="selected.key === 'image'" class="draw-mode"><button :class="{picked: drawMode === 'text'}" @click="drawMode = 'text'">文生图</button><button :class="{picked: drawMode === 'product'}" @click="drawMode = 'product'">产品套图</button></div>
             <template v-if="drawMode === 'product'"><label><i>*</i> 商品图片（最多 10 张）</label><input id="product-image-file" type="file" accept="image/*" style="display:none" @change="uploadProductImage"/><button class="media-upload compact" @click="openProductPicker"><span><ImageIcon :size="18"/></span><b>{{ productUploading ? '上传中…' : '上传商品图片' }}</b><small>建议白底、正面、清晰商品图</small></button><div class="product-thumbs"><img v-for="url in productImageUrls" :key="url" :src="url" class="product-thumb" alt="商品图片"/></div><div class="product-fields"><input v-model="productName" placeholder="商品名称"/><input v-model="productSellingPoints" placeholder="核心卖点，如：防水、耐用、轻便"/><input v-model="productAudience" placeholder="目标人群"/><input v-model="productScene" placeholder="使用场景"/><select v-model="productStyle"><option>实拍干净</option><option>极简现代</option><option>高级黑</option><option>暖光生活</option></select></div><label>生成数量</label><div class="size-row"><button v-for="n in [1,2,3,4]" :key="n" class="size-btn" :class="{picked: productCount === n}" @click="productCount = n">{{ n }} 张</button></div></template>
           <div v-if="drawMode === 'product'" class="selected-template-card" @click="productTemplateOpen = true">
             <div class="template-mini" :style="{'--tone':selectedProductTemplate.tone,'--accent':selectedProductTemplate.accent}"><span></span><i></i></div>
@@ -1458,7 +1526,9 @@ async function pollPayment(orderNo: string) {
 .home{max-width:1240px}.home-hero{position:relative;min-height:300px;display:flex;align-items:center;justify-content:space-between;overflow:hidden;padding:42px 54px;margin-bottom:34px;border:1px solid #dfe6f4;border-radius:22px;background:linear-gradient(110deg,#f9fbff 0%,#eef3ff 54%,#f8faff 100%);box-shadow:0 18px 45px #233c7b0d}.home-hero:after{content:"";position:absolute;right:-130px;top:-180px;width:480px;height:480px;border-radius:50%;background:radial-gradient(circle,#cbd9ff80 0%,#e9efff00 68%);pointer-events:none}.hero-copy{position:relative;z-index:1;max-width:590px}.eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.12em;font-weight:800;color:#5472c6}.hero-title{margin:14px 0 10px;font-size:44px;line-height:1.13;letter-spacing:-.02em;background:none;color:#172033;-webkit-text-fill-color:initial}.hero-title em{font-style:normal;color:#3158e8}.hero-sub{max-width:510px;font-size:15px;line-height:1.8;margin-bottom:22px}.hero-actions{display:flex;gap:10px}.hero-primary,.hero-secondary{display:inline-flex;align-items:center;gap:8px;border-radius:9px;padding:11px 16px;font-size:13px;font-weight:700;cursor:pointer}.hero-primary{border:1px solid #3158e8;background:#3158e8;color:#fff;box-shadow:0 8px 18px #3158e833}.hero-secondary{border:1px solid #d5def4;background:#fff;color:#3158c7}.hero-orbit{position:relative;z-index:1;width:300px;height:230px;flex:none}.orbit-ring{position:absolute;inset:15px 25px;border:1px solid #9eb5f466;border-radius:50%;transform:rotate(-20deg)}.ring-two{inset:34px 3px;transform:rotate(32deg);border-color:#c4d2f266}.orbit-core{position:absolute;left:50%;top:50%;width:76px;height:76px;transform:translate(-50%,-50%);display:grid;place-items:center;border-radius:24px;background:#3158e8;color:#fff;box-shadow:0 16px 36px #3158e84d}.orbit-chip{position:absolute;display:inline-flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #d8e2f7;border-radius:8px;background:#fff;color:#556783;font-size:11px;box-shadow:0 8px 18px #2b438d12}.chip-one{top:12px;left:30px}.chip-two{right:10px;top:70px}.chip-three{bottom:15px;left:45px}.section-label{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:15px}.section-label h2{margin:5px 0 0;color:#172033;font-size:21px}.section-note{font-size:12px;color:#8a97aa;padding-bottom:3px}.quick-start{margin-bottom:38px}.quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.quick-card{position:relative;display:flex;align-items:center;gap:12px;min-height:86px;padding:15px;border:1px solid #e0e6f1;border-radius:12px;text-align:left;background:#fff;color:#172033;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s}.quick-card:hover{transform:translateY(-2px);border-color:#b7c8ec;box-shadow:0 12px 24px #263b6c12}.quick-card>span:nth-child(2){display:flex;flex-direction:column;gap:4px}.quick-card b{font-size:13px}.quick-card small{font-size:11px;color:#8995a8;line-height:1.35}.quick-icon{width:38px;height:38px;display:grid;place-items:center;border-radius:10px;flex:none}.quick-arrow{margin-left:auto;color:#9ba7b8;transform:rotate(-90deg)}.quick-copy .quick-icon{background:#fff0eb;color:#e7663a}.quick-chat .quick-icon{background:#eafaff;color:#1593b7}.quick-image .quick-icon{background:#fff0f7;color:#da4e94}.quick-video .quick-icon{background:#f1edff;color:#7554d7}.tool-library{padding-bottom:35px}.tool-library .home-group{margin-bottom:26px}.tool-library .group-head{margin-bottom:10px}.tool-library .tool-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.tool-library .tool-card{min-height:122px;padding:16px}.tool-library .tool-icon{width:34px;height:34px;border-radius:9px}.tool-library .tool-icon svg{width:18px}
 .workspace-chat .chat-box{border-radius:18px;background:#fff}.workspace-chat .chat-msgs{padding:28px 32px}.workspace-chat .chat-input{padding:18px 22px}.workspace-image .form-panel,.workspace-video .form-panel{background:linear-gradient(150deg,#fff9fc,#fff)}.workspace-image .result-panel{background:linear-gradient(145deg,#fff,#fff7fb)}.workspace-video .result-panel{background:linear-gradient(145deg,#fff,#f7f5ff)}.workspace-tts .result-panel{display:flex;flex-direction:column;justify-content:center}.workspace-works .works-grid,.workspace-materials .works-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}.workspace-template .mat-picker{max-height:210px;overflow:auto}.workspace-koudabo .form-panel{border-top:3px solid #e7663a}.workspace-deepseek .form-panel{border-top:3px solid #4d7cfe}.workspace-xiaohongshu .form-panel{border-top:3px solid #ff4757}.workspace-rewrite .form-panel{border-top:3px solid #8b5cf6}.workspace-title .form-panel{border-top:3px solid #f59e0b}
 .workspace-media .form-panel{border-top:3px solid color-mix(in srgb,var(--media-color,#7c5ce7) 80%,#fff)}.media-upload{width:100%;min-height:82px;display:flex;align-items:center;gap:11px;padding:13px;border:1px dashed #cdd8e8;border-radius:9px;background:#fafcff;color:#526078;text-align:left;cursor:pointer}.media-upload:hover{border-color:#8eabec;background:#f5f8ff}.media-upload span{width:34px;height:34px;display:grid;place-items:center;border-radius:8px;background:#edf2ff;color:#5278de;flex:none}.media-upload b{font-size:13px}.media-upload small{margin-left:auto;color:#8b98aa;font-size:11px}.media-upload.compact{min-height:58px}.media-result{background:linear-gradient(145deg,#fff,#f8f9ff)}.media-download{display:inline-block;margin-top:14px}.workspace-music .form-panel{border-top-color:#84cc16}.workspace-voice_clone .form-panel{border-top-color:#8b5cf6}.workspace-avatar_clone .form-panel{border-top-color:#f97316}.workspace-face_merge .form-panel{border-top-color:#ec4899}.workspace-photo_dh .form-panel{border-top-color:#06b6d4}
+.workspace-gpt-image{display:flex;flex-direction:column;max-width:920px;min-height:calc(100vh - 130px);margin:0 auto;padding-bottom:12px}.gpt-image-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:4px 4px 20px}.gpt-image-head h2{margin:0;color:#182033;font-size:25px;letter-spacing:0}.gpt-image-head p{margin:7px 0 0;color:#7d899d;font-size:13px}.gpt-new-image{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px;border:1px solid #dce3ed;border-radius:8px;background:#fff;color:#40506a;cursor:pointer;font-weight:600}.gpt-new-image:hover{background:#f7f8fa;border-color:#c7d1df}.gpt-image-stage{flex:1;min-height:380px;padding:4px 4px 28px}.gpt-image-empty{height:100%;min-height:370px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#172033;text-align:center}.gpt-image-empty>span{width:52px;height:52px;display:grid;place-items:center;border:1px solid #dfe5ed;border-radius:50%;background:#fff;color:#3158e8}.gpt-image-empty h3{margin:16px 0 6px;font-size:20px;letter-spacing:0}.gpt-image-empty p{margin:0;color:#8994a6;font-size:13px}.gpt-image-gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.gpt-image-card{position:relative;min-width:0;padding:0;border:2px solid transparent;border-radius:8px;overflow:hidden;background:#eef1f5;cursor:pointer;aspect-ratio:1}.gpt-image-card:hover{border-color:#aebfdf}.gpt-image-card.selected{border-color:#3158e8;box-shadow:0 0 0 3px #3158e819}.gpt-image-card img{display:block;width:100%;height:100%;object-fit:cover}.gpt-image-card span{position:absolute;left:8px;right:8px;bottom:8px;padding:7px 9px;border-radius:6px;background:#111827d9;color:#fff;font-size:11px;text-align:center}.gpt-image-composer{position:sticky;bottom:12px;padding:10px 12px 9px;border:1px solid #dce2eb;border-radius:18px;background:#fff;box-shadow:0 12px 38px #18243b18}.gpt-image-composer textarea{display:block;width:100%;min-height:48px;max-height:150px;resize:none;box-sizing:border-box;padding:10px 8px;border:0;outline:0;background:transparent;color:#172033;font:inherit;font-size:15px;line-height:1.55}.gpt-image-composer textarea::placeholder{color:#9aa4b3}.gpt-editing-chip{display:flex;align-items:center;gap:9px;width:max-content;max-width:100%;height:38px;padding:4px 6px 4px 4px;border:1px solid #dfe5ee;border-radius:8px;background:#f7f8fa;color:#4a5870;font-size:12px}.gpt-editing-chip img{width:30px;height:30px;border-radius:5px;object-fit:cover}.gpt-editing-chip button,.gpt-download,.gpt-send{display:grid;place-items:center;border:0;cursor:pointer}.gpt-editing-chip button{width:25px;height:25px;border-radius:6px;background:transparent;color:#748197}.gpt-editing-chip button:hover{background:#e7eaf0;color:#26344b}.gpt-composer-tools{display:flex;align-items:center;gap:9px;padding:2px}.gpt-model-picker{display:flex;align-items:center;gap:5px;height:32px;padding:0 8px;border:1px solid #e1e6ed;border-radius:8px;color:#536681;background:#fafbfc}.gpt-model-picker select{max-width:180px;border:0;outline:0;background:transparent;color:#40506a;font:inherit;font-size:12px}.gpt-used-model{min-width:0;color:#909aac;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gpt-download{margin-left:auto;width:34px;height:34px;border-radius:50%;background:#f1f3f6;color:#536075}.gpt-download:disabled{opacity:.4;cursor:not-allowed}.gpt-send{width:34px;height:34px;border-radius:50%;background:#111827;color:#fff}.gpt-send:disabled{background:#d7dce3;cursor:not-allowed}.gpt-send:not(:disabled):hover{background:#3158e8}
 @media(max-width:980px){.home-hero{padding:34px 30px}.hero-orbit{width:230px;transform:scale(.86);transform-origin:right center}.quick-grid{grid-template-columns:repeat(2,1fr)}.ws-body{grid-template-columns:minmax(280px,340px) minmax(0,1fr)}}
 @media(max-width:700px){.mobile-menu{display:block;flex:none}.topbar{height:60px}.brand{font-size:15px;gap:7px}.brand-mark{width:30px;height:30px}.top-right .balance-pill,.top-right .ghost-btn{display:none}.layout{position:relative}.mobile-backdrop{display:block;position:fixed;inset:60px 0 0;background:#0b122466;z-index:20}.sidebar{position:fixed;left:0;top:60px;bottom:0;z-index:21;width:260px!important;transform:translateX(-102%);transition:transform .22s ease;min-height:0!important;padding:18px 12px;overflow-y:auto}.sidebar.is-open{transform:translateX(0)}.sidebar .nav-item span,.sidebar .nav-group{display:block}.sidebar .nav-item{justify-content:flex-start;padding:0 12px}.sidebar .nav-item svg{margin:0}.main{width:100%;padding:18px 14px 78px}.home-hero{min-height:0;padding:27px 20px 22px;margin-bottom:25px;border-radius:16px}.hero-title{font-size:32px;margin-top:10px}.hero-sub{font-size:13px;line-height:1.65}.hero-actions{flex-wrap:wrap}.hero-primary,.hero-secondary{padding:10px 13px}.hero-orbit{display:none}.section-label{align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:12px}.section-label h2{font-size:18px}.section-note{padding:0}.quick-grid{grid-template-columns:1fr;gap:9px}.quick-card{min-height:72px;padding:12px}.tool-library .tool-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tool-library .tool-card{min-height:108px;padding:14px 12px}.tool-library .tool-card b{font-size:12px}.tool-library .tool-card small{font-size:10px}.workspace{width:100%}.ws-head{align-items:flex-start;gap:12px;flex-wrap:wrap}.ws-title{min-width:0}.ws-title small{display:none}.ws-actions{width:100%;gap:7px}.ws-actions .ghost-btn{flex:1}.ws-body{display:flex;flex-direction:column;gap:12px}.form-panel,.result-panel{width:100%;padding:16px;border-radius:12px}.form-panel textarea{min-height:150px}.result-panel{min-height:330px}.chat-box{height:calc(100vh - 156px);min-height:460px}.chat-msgs{padding:16px}.chat-input{padding:12px}.chat-input .gen-btn{padding:10px 15px}.media-upload{align-items:flex-start;flex-wrap:wrap}.media-upload small{width:100%;margin-left:45px}.account-summary{grid-template-columns:1fr 1fr}.account-summary>button{grid-column:1/-1}.package-grid{grid-template-columns:1fr}.custom-recharge{align-items:flex-start;flex-wrap:wrap}.home-group{margin-bottom:20px}}
+@media(max-width:700px){.workspace-gpt-image{min-height:calc(100vh - 150px);padding-bottom:0}.gpt-image-head{padding:0 2px 14px}.gpt-image-head h2{font-size:21px}.gpt-image-head p{display:none}.gpt-new-image{height:34px}.gpt-image-stage{min-height:300px;padding:2px 0 18px}.gpt-image-empty{min-height:300px}.gpt-image-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gpt-image-composer{bottom:8px;border-radius:15px;padding:8px 9px}.gpt-image-composer textarea{min-height:44px;padding:8px 5px;font-size:14px}.gpt-model-picker select{max-width:125px}.gpt-used-model{display:none}}
 @media(max-width:700px){.skill-route{align-items:flex-start}.skill-route small{margin:2px 0 0;font-size:11px;line-height:1.45}}
 </style>
