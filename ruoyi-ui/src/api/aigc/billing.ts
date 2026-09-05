@@ -1,0 +1,23 @@
+import request from '@/utils/request';
+
+export const listPackages = () => request({ url: '/aigc/admin/packages', method: 'get' });
+export const addPackage = (data: any) => request({ url: '/aigc/admin/packages', method: 'post', data });
+export const updatePackage = (id: number, data: any) => request({ url: `/aigc/admin/packages/${id}`, method: 'put', data });
+export const deletePackage = (id: number) => request({ url: `/aigc/admin/packages/${id}`, method: 'delete' });
+export const listOrders = () => request({ url: '/aigc/admin/orders', method: 'get' });
+export const listCreditFlows = () => request({ url: '/aigc/admin/credit-flows', method: 'get' });
+export const getDailyUsage = (date?: string) => request({ url: '/aigc/admin/usage/daily', method: 'get', params: { date } });
+export const sendDailyUsageEmail = (date?: string) => request({ url: '/aigc/admin/usage/daily/email', method: 'post', params: { date } });
+export const listModels = () => request({ url: '/aigc/admin/models', method: 'get' });
+export const updateModel = (id: number, data: any) => request({ url: `/aigc/admin/models/${id}`, method: 'put', data });
+export const listFeatures = () => request({ url: '/aigc/admin/features', method: 'get' });
+export const updateFeature = (id: number, data: any) => request({ url: `/aigc/admin/features/${id}`, method: 'put', data });
+export const listGateway = () => request({ url: '/aigc/admin/gateway', method: 'get' });
+export const syncModels = () => request({ url: '/aigc/models/sync', method: 'post' });
+export const listUsers = (keyword?: string) => request({ url: '/aigc/admin/users', method: 'get', params: { keyword } });
+export const adjustBalance = (userId: number, data: any) => request({ url: `/aigc/admin/users/${userId}/balance`, method: 'post', data });
+export const updateUserStatus = (userId: number, status: string) => request({ url: `/aigc/admin/users/${userId}/status`, method: 'put', data: { status } });
+export const logoutUser = (userId: number) => request({ url: `/aigc/admin/users/${userId}/logout`, method: 'post' });
+export const deleteUser = (userId: number) => request({ url: `/aigc/admin/users/${userId}`, method: 'delete' });
+export const getUserMenuPermissions = (userId: number) => request({ url: `/aigc/admin/users/${userId}/menu-permissions`, method: 'get' });
+export const updateUserMenuPermissions = (userId: number, data: { menuIds?: number[]; inheritDefault?: boolean }) => request({ url: `/aigc/admin/users/${userId}/menu-permissions`, method: 'put', data });

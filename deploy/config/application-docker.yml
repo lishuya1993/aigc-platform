@@ -1,0 +1,37 @@
+# 容器部署覆盖配置（external file, 优先级高于 jar 内置 application-dev.yml）
+# 数据源/Redis 指向 compose 服务名；aigc 网关与支付从环境变量读取
+captcha:
+  # 前端暂未接入验证码流程，部署阶段关闭（后续前端接入后改回 true）
+  enable: false
+
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        master:
+          url: jdbc:mysql://mysql:3306/ry_vue_plus?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&autoReconnect=true&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true
+          username: root
+          password: 123456
+  data:
+    redis:
+      host: redis
+      port: 6379
+      database: 0
+      password: 123456
+
+aigc:
+  vidu:
+    base-url: ${VIDU_BASE_URL:}
+    api-key: ${VIDU_API_KEY:}
+    model: ${VIDU_MODEL:vidu-video-q2-turbo}
+  gateway:
+    base-url: ${XIAOLI_BASE_URL:https://xiaoli-api.xyz}
+    api-key: ${XIAOLI_API_KEY:}
+    model: ${XIAOLI_MODEL:gpt-4o-mini}
+  payment:
+    epay:
+      gateway: ${EPAY_GATEWAY:https://xiaoli-api.xyz/epay-bridge/submit.php}
+      pid: ${EPAY_PID:}
+      key: ${EPAY_KEY:}
+      notify-url: ${EPAY_NOTIFY_URL:http://23.148.212.100/aigc/payment/epay/notify}
+      return-url: ${EPAY_RETURN_URL:http://23.148.212.100/aigc/#/billing}

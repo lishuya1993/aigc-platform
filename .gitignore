@@ -1,0 +1,40 @@
+# Frontend dependencies and builds
+**/node_modules/
+**/dist/
+**/.vite/
+
+# Java builds
+**/target/
+**/.flattened-pom.xml
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/.run/
+deploy/release-*/
+deploy/*.zip
+dump.rdb
+**/application-local.yml
+**/application-local.yaml
+runtime/application-local.yml
+runtime/application-local.yaml
+
+# Runtime data
+deploy/mysql-data/
+deploy/redis-data/
+logs/
+runtime/
+**/*.tsbuildinfo
+**/vite.config.d.ts
+**/src/types/*.d.ts
+*.log
+
+**/tsconfig.*.tsbuildinfo

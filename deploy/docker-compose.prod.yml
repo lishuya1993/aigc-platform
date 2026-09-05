@@ -1,0 +1,61 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: aigc-mysql
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --max-connections=100
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: ry_vue_plus
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: aigc-redis
+    command: redis-server --requirepass 123456 --maxmemory 64mb --maxmemory-policy allkeys-lru --appendonly no
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+
+  app:
+    image: bellsoft/liberica-openjdk-rocky:21
+    container_name: aigc-app
+    depends_on:
+      - mysql
+      - redis
+    environment:
+      XIAOLI_BASE_URL: "https://xiaoli-api.xyz"
+      XIAOLI_API_KEY: "${XIAOLI_API_KEY}"
+      XIAOLI_MODEL: "gpt-4o-mini"
+      VIDU_BASE_URL: "${VIDU_BASE_URL:-https://tokenhub.tencentmaas.com}"
+      VIDU_API_KEY: "${VIDU_API_KEY:-}"
+      VIDU_MODEL: "vidu-video-q2-turbo"
+      EPAY_GATEWAY: "https://xiaoli-api.xyz/epay-bridge/submit.php"
+      EPAY_PID: "1081"
+      EPAY_KEY: "${EPAY_KEY}"
+      EPAY_NOTIFY_URL: "http://23.148.212.100/aigc/payment/epay/notify"
+      EPAY_RETURN_URL: "http://23.148.212.100/aigc/#/billing"
+      TZ: "Asia/Shanghai"
+    volumes:
+      - /opt/aigc-platform/app.jar:/app/app.jar:ro
+      - /opt/aigc-platform/config:/config:ro
+      - /opt/aigc-platform/logs:/ruoyi/server/logs
+    ports:
+      - "127.0.0.1:8080:8080"
+    command: >
+      java -Xmx512m -Xms256m -Djava.security.egd=file:/dev/./urandom
+      -XX:+HeapDumpOnOutOfMemoryError
+      -jar /app/app.jar
+      --spring.profiles.active=dev
+      --spring.config.additional-location=file:/config/application-docker.yml
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
