@@ -24,6 +24,7 @@ const TOOLS: any[] = [
   // AIGC 工具集
   { key: 'chat', group: 'AIGC', title: 'AI对话', sub: '智能助手随时聊', icon: Bot, color: '#22d3ee' },
   { key: 'image', group: 'AIGC', title: 'AI绘画', sub: '文生图/图生图', icon: Palette, color: '#f472b6', needCap: 'draw' },
+  { key: 'gpt_image', group: 'AIGC', title: 'GPT 图片生成', sub: '提示词生图/选图修改/模型切换', icon: Sparkles, color: '#10b981', needCap: 'draw' },
   { key: 'product_main', featureCode: 'image', group: 'AIGC', title: '商品主图', sub: '上传商品图生成电商主图', icon: ImageIcon, color: '#fb7185', needCap: 'draw' },
   { key: 'video', group: 'AIGC', title: 'AI视频', sub: '文生视频/图生视频', icon: Video, color: '#8b5cf6', needCap: 'video' },
   { key: 'tts', group: 'AIGC', title: 'AI配音', sub: '文案一键转语音（免费）', icon: AudioLines, color: '#22c55e' },
@@ -318,7 +319,7 @@ function copyOutput() {
   if (!output.value) { ElMessage.info('暂无内容可复制'); return }
   navigator.clipboard.writeText(output.value).then(() => ElMessage.success('已复制到剪贴板')).catch(() => ElMessage.info('复制失败，请手动选择复制'))
 }
-function skillCode(tool = selected.value) { return tool.featureCode || (tool.key === 'image' ? 'image' : tool.key === 'video' ? 'video' : tool.key === 'extract' ? 'extract' : tool.key === 'chat' ? 'copywriting' : tool.key) }
+function skillCode(tool = selected.value) { return tool.featureCode || (['image', 'gpt_image'].includes(tool.key) ? tool.key : tool.key === 'video' ? 'video' : tool.key === 'extract' ? 'extract' : tool.key === 'chat' ? 'copywriting' : tool.key) }
 const selectedCost = computed(() => Number(featureConfigs.value[skillCode()]?.credits_per_call || 1))
 const selModelList = computed(() => {
   const cap = selected.value.needCap
@@ -361,6 +362,7 @@ async function loadMeta() {
     if (pack.code === 200) packages.value = pack.data || []
     if (feat.code === 200) featureConfigs.value = Object.fromEntries((feat.data || []).map((x: any) => [x.feature_code, x]))
     selectedModel.value = models.value[0]?.model_code || ''
+    if (!drawModel.value || !drawModels.value.some((model: any) => model.model_code === drawModel.value)) drawModel.value = drawModels.value[0]?.model_code || ''
   } catch {}
 }
 async function loadWorks() {
@@ -464,11 +466,11 @@ function pickTool(t: any) {
   mediaPrompt.value = ''; mediaInputUrl.value = ''; mediaInputUrl2.value = ''; mediaResultUrl.value = ''
   if (t.key === 'chat') chatMessages.value = []
   if (t.key === 'materials' || t.key === 'template_edit') loadMaterials()
-  const featureCode = t.featureCode || (t.key === 'image' ? 'image' : t.key === 'video' ? 'video' : t.key === 'extract' ? 'extract' : 'copywriting')
+  const featureCode = t.featureCode || (['image', 'gpt_image'].includes(t.key) ? t.key : t.key === 'video' ? 'video' : t.key === 'extract' ? 'extract' : 'copywriting')
   const configured = featureConfigs.value[featureCode]?.gateway_model_id
   const pool = t.needCap === 'draw' ? drawModels.value : t.needCap === 'video' ? videoModels.value : ['music','audio','digital_human','face_merge'].includes(t.needCap) ? mediaModels.value.filter((x: any) => x.capability === t.needCap) : models.value
   const bound = configured ? pool.find((x: any) => String(x.id) === String(configured)) : null
-  if (t.needCap === 'draw' && bound) drawModel.value = bound.model_code
+  if (t.needCap === 'draw') drawModel.value = (bound || pool.find((model: any) => model.model_code === drawModel.value) || pool[0])?.model_code || ''
   else if (t.needCap === 'video' && bound) videoModel.value = bound.model_code
   else if (['music','audio','digital_human','face_merge'].includes(t.needCap)) mediaModel.value = (bound || pool[0])?.model_code || ''
   else if (t.model && models.value.length) {
@@ -579,7 +581,7 @@ async function doDraw() {
     const productPrompt = drawMode.value === 'product' ? `电商商品主图/商品套图。商品名称：${productName.value || '未命名商品'}。核心卖点：${productSellingPoints.value || '突出商品材质、细节和使用价值'}。目标人群：${productAudience.value || '电商消费者'}。使用场景：${productScene.value}。视觉风格：${productStyle.value}。构图：${productComposition.value}。视角：${productCamera.value}。光线：${productLighting.value}。背景：${productBackground.value}。文字要求：${productCopy.value}。${drawPrompt.value || '画面简洁、高级、突出商品主体，符合电商平台主图规范。'}` : drawPrompt.value
     const urls = drawMode.value === 'product' ? (productImageUrls.value.length ? productImageUrls.value : [productImageUrl.value]) : [undefined]
     for (let i = 0; i < (drawMode.value === 'product' ? productCount.value : 1); i++) {
-      const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ prompt: productPrompt, size: drawSize.value, imageUrl: urls[i % urls.length] }) })
+      const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ featureCode: skillCode(), model: drawModel.value || undefined, prompt: productPrompt, size: drawSize.value, imageUrl: urls[i % urls.length] }) })
       const d = await r.json(); if (d.code !== 200) throw new Error(d.msg || '绘画失败')
       const item: DrawResult = { url: d.data.url, prompt: productPrompt, model: d.data.model || drawModel.value || '后台智能路由', createdAt: new Date().toLocaleString() }
       if (drawMode.value === 'product') productResults.value.push(item)
@@ -630,7 +632,7 @@ async function reviseDraw() {
   if (!drawRevisePrompt.value.trim()) { ElMessage.warning('请输入修改要求'); return }
   revisingDraw.value = true
   try {
-    const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ prompt: `${drawPrompt.value}\n\n请基于当前生成图片进行局部修改，只修改以下要求，保持商品主体、比例和其他未指定内容不变：${drawRevisePrompt.value}`, size: drawSize.value, imageUrl: drawUrl.value }) })
+    const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ featureCode: skillCode(), model: drawModel.value || undefined, prompt: `${drawPrompt.value}\n\n请基于当前生成图片进行局部修改，只修改以下要求，保持商品主体、比例和其他未指定内容不变：${drawRevisePrompt.value}`, size: drawSize.value, imageUrl: drawUrl.value }) })
     const d = await r.json()
     if (d.code !== 200) throw new Error(d.msg || '图片修改失败')
     const item: DrawResult = { url: d.data.url, prompt: `${drawPrompt.value}；修改：${drawRevisePrompt.value}`, model: d.data.model || drawModel.value || '后台智能路由', createdAt: new Date().toLocaleString() }
@@ -966,12 +968,12 @@ async function pollPayment(orderNo: string) {
       </div>
 
       <!-- AI 绘画 -->
-      <div v-else-if="['image', 'product_main'].includes(selected.key)" class="workspace workspace-image">
-        <div class="ws-head"><div class="ws-title"><span class="tool-icon sm" style="background:#f472b622;color:#f472b6"><Palette :size="17"/></span><b>{{ selected.key === 'product_main' ? '商品主图' : 'AI 绘画' }}</b><small>{{ selected.key === 'product_main' ? '商品图 · 电商视觉生成' : '文生图 · 模型后台配置' }}</small></div></div>
+      <div v-else-if="['image', 'gpt_image', 'product_main'].includes(selected.key)" class="workspace workspace-image">
+        <div class="ws-head"><div class="ws-title"><span class="tool-icon sm" style="background:#f472b622;color:#f472b6"><Palette :size="17"/></span><b>{{ selected.key === 'product_main' ? '商品主图' : selected.key === 'gpt_image' ? 'GPT 图片生成' : 'AI 绘画' }}</b><small>{{ selected.key === 'product_main' ? '商品图 · 电商视觉生成' : selected.key === 'gpt_image' ? '提示词生图 · 选图修改 · 模型切换' : '文生图 · 模型后台配置' }}</small></div></div>
         <div class="ws-body">
           <div class="form-panel">
           <div class="panel-head"><span class="panel-icon" style="background:#f472b612;color:#f472b6"><Palette :size="15"/></span><div><b>绘画设置</b><small>描述画面，选择尺寸</small></div></div>
-            <div v-if="selected.key === 'image'" class="draw-mode"><button :class="{picked: drawMode === 'text'}" @click="drawMode = 'text'">文生图</button><button :class="{picked: drawMode === 'product'}" @click="drawMode = 'product'">产品套图</button></div>
+            <div v-if="['image', 'gpt_image'].includes(selected.key)" class="draw-mode"><button :class="{picked: drawMode === 'text'}" @click="drawMode = 'text'">文生图</button><button :class="{picked: drawMode === 'product'}" @click="drawMode = 'product'">产品套图</button></div>
             <template v-if="drawMode === 'product'"><label><i>*</i> 商品图片（最多 10 张）</label><input id="product-image-file" type="file" accept="image/*" style="display:none" @change="uploadProductImage"/><button class="media-upload compact" @click="openProductPicker"><span><ImageIcon :size="18"/></span><b>{{ productUploading ? '上传中…' : '上传商品图片' }}</b><small>建议白底、正面、清晰商品图</small></button><div class="product-thumbs"><img v-for="url in productImageUrls" :key="url" :src="url" class="product-thumb" alt="商品图片"/></div><div class="product-fields"><input v-model="productName" placeholder="商品名称"/><input v-model="productSellingPoints" placeholder="核心卖点，如：防水、耐用、轻便"/><input v-model="productAudience" placeholder="目标人群"/><input v-model="productScene" placeholder="使用场景"/><select v-model="productStyle"><option>实拍干净</option><option>极简现代</option><option>高级黑</option><option>暖光生活</option></select></div><label>生成数量</label><div class="size-row"><button v-for="n in [1,2,3,4]" :key="n" class="size-btn" :class="{picked: productCount === n}" @click="productCount = n">{{ n }} 张</button></div></template>
           <div v-if="drawMode === 'product'" class="selected-template-card" @click="productTemplateOpen = true">
             <div class="template-mini" :style="{'--tone':selectedProductTemplate.tone,'--accent':selectedProductTemplate.accent}"><span></span><i></i></div>
@@ -980,7 +982,9 @@ async function pollPayment(orderNo: string) {
           </div>
           <label><i>*</i> 绘画描述</label>
             <textarea v-model="drawPrompt" :placeholder="selected.key === 'product_main' ? '填写商品卖点、目标人群、使用场景、价格和画面要求' : '描述你想生成的画面，如：赛博朋克风格的未来城市夜景，霓虹灯，雨夜'"></textarea>
-            <div class="skill-route"><Sparkles :size="15"/><span>{{ drawUsedModel ? `绘图 Skill · ${drawUsedModel}` : '绘图 Skill · 等待调用' }}</span><small>{{ drawUsedModel ? '本次请求实际使用的模型' : '生成后显示实际模型' }}</small></div>
+            <label>生图模型</label>
+            <select v-model="drawModel" class="model-select"><option v-for="model in drawModels" :key="model.model_code" :value="model.model_code">{{ model.model_name || model.model_code }}</option></select>
+            <div class="skill-route"><Sparkles :size="15"/><span>{{ drawUsedModel ? `图片生成 Skill · ${drawUsedModel}` : `图片生成 Skill · ${drawModel || '后台默认路由'}` }}</span><small>{{ drawUsedModel ? '本次请求实际使用的模型' : '仅显示后台已启用的绘图模型' }}</small></div>
             <label>尺寸</label>
             <div class="size-row">
               <button v-for="s in ['1024x1024','768x1024','1024x768']" :key="s" class="size-btn" :class="{ picked: drawSize === s }" @click="drawSize = s">{{ s }}</button>

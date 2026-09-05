@@ -22,6 +22,7 @@ const TOOLS = [
     // AIGC 工具集
     { key: 'chat', group: 'AIGC', title: 'AI对话', sub: '智能助手随时聊', icon: Bot, color: '#22d3ee' },
     { key: 'image', group: 'AIGC', title: 'AI绘画', sub: '文生图/图生图', icon: Palette, color: '#f472b6', needCap: 'draw' },
+    { key: 'gpt_image', group: 'AIGC', title: 'GPT 图片生成', sub: '提示词生图/选图修改/模型切换', icon: Sparkles, color: '#10b981', needCap: 'draw' },
     { key: 'product_main', featureCode: 'image', group: 'AIGC', title: '商品主图', sub: '上传商品图生成电商主图', icon: ImageIcon, color: '#fb7185', needCap: 'draw' },
     { key: 'video', group: 'AIGC', title: 'AI视频', sub: '文生视频/图生视频', icon: Video, color: '#8b5cf6', needCap: 'video' },
     { key: 'tts', group: 'AIGC', title: 'AI配音', sub: '文案一键转语音（免费）', icon: AudioLines, color: '#22c55e' },
@@ -442,7 +443,7 @@ function copyOutput() {
     }
     navigator.clipboard.writeText(output.value).then(() => ElMessage.success('已复制到剪贴板')).catch(() => ElMessage.info('复制失败，请手动选择复制'));
 }
-function skillCode(tool = selected.value) { return tool.featureCode || (tool.key === 'image' ? 'image' : tool.key === 'video' ? 'video' : tool.key === 'extract' ? 'extract' : tool.key === 'chat' ? 'copywriting' : tool.key); }
+function skillCode(tool = selected.value) { return tool.featureCode || (['image', 'gpt_image'].includes(tool.key) ? tool.key : tool.key === 'video' ? 'video' : tool.key === 'extract' ? 'extract' : tool.key === 'chat' ? 'copywriting' : tool.key); }
 const selectedCost = computed(() => Number(featureConfigs.value[skillCode()]?.credits_per_call || 1));
 const selModelList = computed(() => {
     const cap = selected.value.needCap;
@@ -506,6 +507,8 @@ async function loadMeta() {
         if (feat.code === 200)
             featureConfigs.value = Object.fromEntries((feat.data || []).map((x) => [x.feature_code, x]));
         selectedModel.value = models.value[0]?.model_code || '';
+        if (!drawModel.value || !drawModels.value.some((model) => model.model_code === drawModel.value))
+            drawModel.value = drawModels.value[0]?.model_code || '';
     }
     catch { }
 }
@@ -697,12 +700,12 @@ function pickTool(t) {
         chatMessages.value = [];
     if (t.key === 'materials' || t.key === 'template_edit')
         loadMaterials();
-    const featureCode = t.featureCode || (t.key === 'image' ? 'image' : t.key === 'video' ? 'video' : t.key === 'extract' ? 'extract' : 'copywriting');
+    const featureCode = t.featureCode || (['image', 'gpt_image'].includes(t.key) ? t.key : t.key === 'video' ? 'video' : t.key === 'extract' ? 'extract' : 'copywriting');
     const configured = featureConfigs.value[featureCode]?.gateway_model_id;
     const pool = t.needCap === 'draw' ? drawModels.value : t.needCap === 'video' ? videoModels.value : ['music', 'audio', 'digital_human', 'face_merge'].includes(t.needCap) ? mediaModels.value.filter((x) => x.capability === t.needCap) : models.value;
     const bound = configured ? pool.find((x) => String(x.id) === String(configured)) : null;
-    if (t.needCap === 'draw' && bound)
-        drawModel.value = bound.model_code;
+    if (t.needCap === 'draw')
+        drawModel.value = (bound || pool.find((model) => model.model_code === drawModel.value) || pool[0])?.model_code || '';
     else if (t.needCap === 'video' && bound)
         videoModel.value = bound.model_code;
     else if (['music', 'audio', 'digital_human', 'face_merge'].includes(t.needCap))
@@ -900,7 +903,7 @@ async function doDraw() {
         const productPrompt = drawMode.value === 'product' ? `电商商品主图/商品套图。商品名称：${productName.value || '未命名商品'}。核心卖点：${productSellingPoints.value || '突出商品材质、细节和使用价值'}。目标人群：${productAudience.value || '电商消费者'}。使用场景：${productScene.value}。视觉风格：${productStyle.value}。构图：${productComposition.value}。视角：${productCamera.value}。光线：${productLighting.value}。背景：${productBackground.value}。文字要求：${productCopy.value}。${drawPrompt.value || '画面简洁、高级、突出商品主体，符合电商平台主图规范。'}` : drawPrompt.value;
         const urls = drawMode.value === 'product' ? (productImageUrls.value.length ? productImageUrls.value : [productImageUrl.value]) : [undefined];
         for (let i = 0; i < (drawMode.value === 'product' ? productCount.value : 1); i++) {
-            const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ prompt: productPrompt, size: drawSize.value, imageUrl: urls[i % urls.length] }) });
+            const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ featureCode: skillCode(), model: drawModel.value || undefined, prompt: productPrompt, size: drawSize.value, imageUrl: urls[i % urls.length] }) });
             const d = await r.json();
             if (d.code !== 200)
                 throw new Error(d.msg || '绘画失败');
@@ -985,7 +988,7 @@ async function reviseDraw() {
     }
     revisingDraw.value = true;
     try {
-        const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ prompt: `${drawPrompt.value}\n\n请基于当前生成图片进行局部修改，只修改以下要求，保持商品主体、比例和其他未指定内容不变：${drawRevisePrompt.value}`, size: drawSize.value, imageUrl: drawUrl.value }) });
+        const r = await apiFetch('/aigc/image/generate', { method: 'POST', body: JSON.stringify({ featureCode: skillCode(), model: drawModel.value || undefined, prompt: `${drawPrompt.value}\n\n请基于当前生成图片进行局部修改，只修改以下要求，保持商品主体、比例和其他未指定内容不变：${drawRevisePrompt.value}`, size: drawSize.value, imageUrl: drawUrl.value }) });
         const d = await r.json();
         if (d.code !== 200)
             throw new Error(d.msg || '图片修改失败');
@@ -2181,7 +2184,7 @@ function __VLS_template() {
             disabled: ((__VLS_ctx.chatting)),
         });
     }
-    else if (['image', 'product_main'].includes(__VLS_ctx.selected.key)) {
+    else if (['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)) {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("workspace workspace-image") },
         });
@@ -2205,9 +2208,9 @@ function __VLS_template() {
             size: ((17)),
         }, ...__VLS_functionalComponentArgsRest(__VLS_201));
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
-        (__VLS_ctx.selected.key === 'product_main' ? '商品主图' : 'AI 绘画');
+        (__VLS_ctx.selected.key === 'product_main' ? '商品主图' : __VLS_ctx.selected.key === 'gpt_image' ? 'GPT 图片生成' : 'AI 绘画');
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
-        (__VLS_ctx.selected.key === 'product_main' ? '商品图 · 电商视觉生成' : '文生图 · 模型后台配置');
+        (__VLS_ctx.selected.key === 'product_main' ? '商品图 · 电商视觉生成' : __VLS_ctx.selected.key === 'gpt_image' ? '提示词生图 · 选图修改 · 模型切换' : '文生图 · 模型后台配置');
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("ws-body") },
         });
@@ -2233,7 +2236,7 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.b, __VLS_intrinsicElements.b)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
-        if (__VLS_ctx.selected.key === 'image') {
+        if (['image', 'gpt_image'].includes(__VLS_ctx.selected.key)) {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("draw-mode") },
             });
@@ -2245,9 +2248,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
-                        if (!((__VLS_ctx.selected.key === 'image')))
+                        if (!((['image', 'gpt_image'].includes(__VLS_ctx.selected.key))))
                             return;
                         __VLS_ctx.drawMode = 'text';
                     } },
@@ -2261,9 +2264,9 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
-                        if (!((__VLS_ctx.selected.key === 'image')))
+                        if (!((['image', 'gpt_image'].includes(__VLS_ctx.selected.key))))
                             return;
                         __VLS_ctx.drawMode = 'product';
                     } },
@@ -2347,7 +2350,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawMode === 'product')))
                                 return;
@@ -2369,7 +2372,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
                         if (!((__VLS_ctx.drawMode === 'product')))
                             return;
@@ -2400,6 +2403,18 @@ function __VLS_template() {
             value: ((__VLS_ctx.drawPrompt)),
             placeholder: ((__VLS_ctx.selected.key === 'product_main' ? '填写商品卖点、目标人群、使用场景、价格和画面要求' : '描述你想生成的画面，如：赛博朋克风格的未来城市夜景，霓虹灯，雨夜')),
         });
+        __VLS_elementAsFunction(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
+        __VLS_elementAsFunction(__VLS_intrinsicElements.select, __VLS_intrinsicElements.select)({
+            value: ((__VLS_ctx.drawModel)),
+            ...{ class: ("model-select") },
+        });
+        for (const [model] of __VLS_getVForSourceType((__VLS_ctx.drawModels))) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.option, __VLS_intrinsicElements.option)({
+                key: ((model.model_code)),
+                value: ((model.model_code)),
+            });
+            (model.model_name || model.model_code);
+        }
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("skill-route") },
         });
@@ -2413,9 +2428,9 @@ function __VLS_template() {
             size: ((15)),
         }, ...__VLS_functionalComponentArgsRest(__VLS_219));
         __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-        (__VLS_ctx.drawUsedModel ? `绘图 Skill · ${__VLS_ctx.drawUsedModel}` : '绘图 Skill · 等待调用');
+        (__VLS_ctx.drawUsedModel ? `图片生成 Skill · ${__VLS_ctx.drawUsedModel}` : `图片生成 Skill · ${__VLS_ctx.drawModel || '后台默认路由'}`);
         __VLS_elementAsFunction(__VLS_intrinsicElements.small, __VLS_intrinsicElements.small)({});
-        (__VLS_ctx.drawUsedModel ? '本次请求实际使用的模型' : '生成后显示实际模型');
+        (__VLS_ctx.drawUsedModel ? '本次请求实际使用的模型' : '仅显示后台已启用的绘图模型');
         __VLS_elementAsFunction(__VLS_intrinsicElements.label, __VLS_intrinsicElements.label)({});
         __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: ("size-row") },
@@ -2429,7 +2444,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                        if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                             return;
                         __VLS_ctx.drawSize = s;
                     } },
@@ -2487,7 +2502,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawMode === 'product' && __VLS_ctx.productResults.length)))
                                 return;
@@ -2583,7 +2598,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            if (!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key))))
                                 return;
                             if (!((__VLS_ctx.drawHistory.length)))
                                 return;
@@ -2684,7 +2699,7 @@ function __VLS_template() {
                         return;
                     if (!(!((__VLS_ctx.selected.key === 'chat'))))
                         return;
-                    if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                    if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                         return;
                     if (!((__VLS_ctx.selected.key === 'video')))
                         return;
@@ -2703,7 +2718,7 @@ function __VLS_template() {
                         return;
                     if (!(!((__VLS_ctx.selected.key === 'chat'))))
                         return;
-                    if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                    if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                         return;
                     if (!((__VLS_ctx.selected.key === 'video')))
                         return;
@@ -2734,7 +2749,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!((__VLS_ctx.selected.key === 'video')))
                             return;
@@ -2755,7 +2770,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!((__VLS_ctx.selected.key === 'video')))
                             return;
@@ -3031,7 +3046,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3056,7 +3071,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3108,7 +3123,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -3135,7 +3150,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -3376,7 +3391,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3400,7 +3415,7 @@ function __VLS_template() {
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'chat'))))
                             return;
-                        if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                        if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                             return;
                         if (!(!((__VLS_ctx.selected.key === 'video'))))
                             return;
@@ -3504,7 +3519,7 @@ function __VLS_template() {
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'chat'))))
                                 return;
-                            if (!(!((['image', 'product_main'].includes(__VLS_ctx.selected.key)))))
+                            if (!(!((['image', 'gpt_image', 'product_main'].includes(__VLS_ctx.selected.key)))))
                                 return;
                             if (!(!((__VLS_ctx.selected.key === 'video'))))
                                 return;
@@ -4484,7 +4499,7 @@ function __VLS_template() {
     var __VLS_515;
     __VLS_501.slots.default;
     var __VLS_501;
-    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
+    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'model-select', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
     var __VLS_slots;
     var $slots;
     let __VLS_inheritedAttrs;
@@ -4556,6 +4571,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             chatting: chatting,
             drawPrompt: drawPrompt,
             drawSize: drawSize,
+            drawModel: drawModel,
             drawUrl: drawUrl,
             drawUsedModel: drawUsedModel,
             drawPreviewOpen: drawPreviewOpen,

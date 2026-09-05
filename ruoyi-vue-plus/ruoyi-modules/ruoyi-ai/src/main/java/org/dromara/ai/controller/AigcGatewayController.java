@@ -391,6 +391,18 @@ public class AigcGatewayController {
         throw new BillingException("后台尚未配置“" + featureCode + "” Skill 的可用模型");
     }
 
+    /** A user may choose only a model that is currently enabled for image generation. */
+    private String resolveRequestedImageModel(String featureCode, String requestedModel) {
+        String model = clean(requestedModel);
+        if (model.isBlank()) return resolveSkillModel(featureCode, "draw");
+        List<Map<String, Object>> available = jdbc.queryForList(
+            "select m.model_code from aigc_gateway_model m join aigc_gateway g on g.id=m.gateway_id " +
+                "where m.model_code=? and m.capability='draw' and m.enabled='1' and g.enabled='1' limit 1",
+            model);
+        if (available.isEmpty()) throw new BillingException("所选图片模型不可用，请在后台模型配置中启用后重试");
+        return String.valueOf(available.get(0).get("model_code"));
+    }
+
     private String skillInstruction(String featureCode) {
         String configured = loadSkillInstruction(featureCode);
         if (!configured.isBlank()) {
@@ -691,12 +703,15 @@ public class AigcGatewayController {
         if (request == null || request.prompt() == null || request.prompt().isBlank()) return R.fail("请输入绘画描述");
         String token = imageGatewayApiKey();
         if (token.isBlank() || token.startsWith("CHANGE_ME")) return R.fail("尚未配置图片生成 API Key");
+        String featureCode = clean(request.featureCode());
+        if (!featureCode.equals("image") && !featureCode.equals("gpt_image")) featureCode = "image";
         final String selectedModel;
-        try { selectedModel = resolveSkillModel("image", "draw"); }
+        try { selectedModel = resolveRequestedImageModel(featureCode, request.model()); }
         catch (BillingException ex) { return R.fail(ex.getMessage()); }
         Charge charge;
         try {
-            charge = transactionTemplate.execute(status -> charge(LoginHelper.getUserId(), "image", selectedModel, "draw", request.prompt()));
+            String billingFeatureCode = featureCode;
+            charge = transactionTemplate.execute(status -> charge(LoginHelper.getUserId(), billingFeatureCode, selectedModel, "draw", request.prompt()));
         } catch (BillingException ex) {
             return R.fail(ex.getMessage());
         }
@@ -895,7 +910,7 @@ public class AigcGatewayController {
     }
     public record GenerateRequest(String prompt, String subject, String model, Double temperature, String featureCode) {}
     public record VideoGenerateRequest(String prompt, String model, Integer duration, String imageUrl, String imageUrl2) {}
-    public record ImageGenerateRequest(String prompt, String model, String size, String quality, String background, String outputFormat, String imageUrl) {}
+    public record ImageGenerateRequest(String prompt, String model, String size, String quality, String background, String outputFormat, String imageUrl, String featureCode) {}
     public record MediaGenerateRequest(String featureCode, String prompt, String model, String inputUrl, String inputUrl2, Map<String, Object> options) {}
 
     // ============ 模板剪辑 (图片+配音合成视频) ============

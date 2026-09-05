@@ -6,6 +6,7 @@ INSERT IGNORE INTO sys_menu (menu_id,menu_name,parent_id,order_num,path,componen
  (1761400000000002001,'智能文案',@aigc_parent,1,'copywriting','aigc/copywriting/index','','N','Y','C','0','0','aigc:copywriting:view','edit','','',1761000000000000103,1761100000000000001,NOW(),'智能文案'),
  (1761400000000002002,'文案提取',@aigc_parent,2,'extract','aigc/extract/index','','N','Y','C','0','0','aigc:extract:view','document','','',1761000000000000103,1761100000000000001,NOW(),'文案提取'),
  (1761400000000002003,'AI绘图',@aigc_parent,3,'drawing','aigc/drawing/index','','N','Y','C','0','0','aigc:drawing:view','image','','',1761000000000000103,1761100000000000001,NOW(),'AI绘图'),
+ (1761400000000002006,'GPT 图片生成',@aigc_parent,6,'gpt-image','aigc/drawing/index','','N','Y','C','0','0','aigc:gptImage:view','image','','',1761000000000000103,1761100000000000001,NOW(),'提示词生图、选图修改、模型切换'),
  (1761400000000002004,'照片数字人',@aigc_parent,4,'digital-human','aigc/digitalHuman/index','','N','Y','C','0','0','aigc:digitalHuman:view','user','','',1761000000000000103,1761100000000000001,NOW(),'照片数字人'),
  (1761400000000002005,'我的作品',@aigc_parent,5,'works','aigc/works/index','','N','Y','C','0','0','aigc:works:view','folder','','',1761000000000000103,1761100000000000001,NOW(),'我的作品');
 /* Legacy shape retained below for reference only. */
@@ -129,6 +130,7 @@ INSERT INTO aigc_feature_config(feature_code,feature_name,menu_permission,credit
 ('extract','文案提取','aigc:extract:run',1,'1'),
 ('video','文案转视频','aigc:video:run',1,'1'),
 ('image','AI绘图','aigc:drawing:view',10,'1'),
+('gpt_image','GPT 图片生成','aigc:gptImage:view',1,'1'),
 ('digital_human','照片数字人','aigc:digitalHuman:view',30,'1'),
 ('music','AI音乐','aigc:music:run',10,'1'),
 ('voice_clone','声音克隆','aigc:voiceClone:run',20,'1'),
