@@ -33,6 +33,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -721,9 +722,10 @@ public class AigcGatewayController {
             payload.put("model", selectedModel);
             payload.put("prompt", request.prompt());
             payload.put("size", request.size() == null || request.size().isBlank() ? "1024x1024" : request.size());
-            if (request.imageUrl() != null && !request.imageUrl().isBlank()) {
-                payload.put("images", List.of(request.imageUrl()));
-            }
+            List<String> referenceImages = new ArrayList<>();
+            if (request.imageUrls() != null) referenceImages.addAll(request.imageUrls().stream().filter(Objects::nonNull).filter(url -> !url.isBlank()).limit(10).toList());
+            if (request.imageUrl() != null && !request.imageUrl().isBlank() && !referenceImages.contains(request.imageUrl())) referenceImages.add(0, request.imageUrl());
+            if (!referenceImages.isEmpty()) payload.put("images", referenceImages);
             // GPT Image models return b64_json and reject the legacy response_format field.
             // Other OpenAI-compatible image providers still support URL responses.
             if (!isGptImageModel(selectedModel)) payload.put("response_format", "url");
@@ -910,7 +912,7 @@ public class AigcGatewayController {
     }
     public record GenerateRequest(String prompt, String subject, String model, Double temperature, String featureCode) {}
     public record VideoGenerateRequest(String prompt, String model, Integer duration, String imageUrl, String imageUrl2) {}
-    public record ImageGenerateRequest(String prompt, String model, String size, String quality, String background, String outputFormat, String imageUrl, String featureCode) {}
+    public record ImageGenerateRequest(String prompt, String model, String size, String quality, String background, String outputFormat, String imageUrl, List<String> imageUrls, String featureCode) {}
     public record MediaGenerateRequest(String featureCode, String prompt, String model, String inputUrl, String inputUrl2, Map<String, Object> options) {}
 
     // ============ 模板剪辑 (图片+配音合成视频) ============

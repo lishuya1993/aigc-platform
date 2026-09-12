@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History, ArrowUp, Download, X } from 'lucide-vue-next'
+import { Mic2, Sparkles, FileText, WandSparkles, Hash, Languages, Heart, PenLine, Music, LayoutGrid, PenTool, Megaphone, Copy, ScanSearch, Bot, Palette, Video, Image as ImageIcon, FolderOpen, Clapperboard, Layers, ScanFace, Mic, AudioLines, UserRound, LogOut, Search, Zap, Wallet, ChevronDown, History, ArrowUp, Download, X, Plus, Globe2 } from 'lucide-vue-next'
 import { secureFetch } from './secure-api'
 
 // ============ 工具定义 ============
@@ -82,6 +82,11 @@ let sessionExpired = false
 const chatMessages = ref<{role:string, content:string}[]>([])
 const chatInput = ref('')
 const chatting = ref(false)
+const chatStreaming = ref(false)
+const chatMemoryKey = computed(() => `ll_chat_memory_${userName.value || 'guest'}`)
+function saveChatMemory() { try { localStorage.setItem(chatMemoryKey.value, JSON.stringify(chatMessages.value.slice(-40))) } catch {} }
+function loadChatMemory() { try { const raw = localStorage.getItem(chatMemoryKey.value); if (raw) chatMessages.value = JSON.parse(raw) } catch { chatMessages.value = [] } }
+function clearChatMemory() { chatMessages.value = []; localStorage.removeItem(chatMemoryKey.value) }
 
 // 绘画
 const drawPrompt = ref('')
@@ -91,8 +96,18 @@ const drawUrl = ref('')
 const drawUsedModel = ref('')
 const drawPreviewOpen = ref(false)
 const gptImageInput = ref('')
-type DrawResult = { url: string; prompt: string; model: string; createdAt: string }
+const gptImageReferenceUrls = ref<string[]>([])
+const gptImageUploading = ref(false)
+const gptAttachmentMenu = ref(false)
+const gptFileName = ref('')
+const gptFileContext = ref('')
+type DrawResult = { url: string; prompt: string; model: string; createdAt: string; references?: string[] }
 const drawHistory = ref<DrawResult[]>([])
+const gptImageHistory = ref<DrawResult[]>([])
+const gptImageMemoryKey = computed(() => `ll_gpt_image_history_${userName.value || 'guest'}`)
+function saveGptImageHistory() { try { localStorage.setItem(gptImageMemoryKey.value, JSON.stringify(gptImageHistory.value.slice(-30))) } catch {} }
+function loadGptImageHistory() { try { const raw = localStorage.getItem(gptImageMemoryKey.value); gptImageHistory.value = raw ? JSON.parse(raw) : [] } catch { gptImageHistory.value = [] } }
+function clearGptImageHistory() { gptImageHistory.value = []; localStorage.removeItem(gptImageMemoryKey.value); startNewGptImage() }
 const productResults = ref<DrawResult[]>([])
 const drawMode = ref<'text'|'product'>('text')
 const productImageUrl = ref('')
@@ -465,7 +480,8 @@ function pickTool(t: any) {
   selected.value = t; mobileNavOpen.value = false; subject.value = ''; output.value = ''; direction.value = ''; results.value = []; activeResult.value = 0; reviseInput.value = ''; imgUrl.value = ''; extra.value = {}
   if (t.key === 'product_main') drawMode.value = 'product'
   mediaPrompt.value = ''; mediaInputUrl.value = ''; mediaInputUrl2.value = ''; mediaResultUrl.value = ''
-  if (t.key === 'chat') chatMessages.value = []
+  if (t.key === 'chat') loadChatMemory()
+  if (t.key === 'gpt_image') loadGptImageHistory()
   if (t.key === 'materials' || t.key === 'template_edit') loadMaterials()
   const featureCode = t.featureCode || (['image', 'gpt_image'].includes(t.key) ? t.key : t.key === 'video' ? 'video' : t.key === 'extract' ? 'extract' : 'copywriting')
   const configured = featureConfigs.value[featureCode]?.gateway_model_id
@@ -558,6 +574,7 @@ async function sendChat() {
   const text = chatInput.value.trim()
   if (!text) return
   chatMessages.value.push({ role: 'user', content: text })
+  saveChatMemory()
   chatInput.value = ''
   chatting.value = true
   try {
@@ -565,9 +582,16 @@ async function sendChat() {
     const r = await apiFetch('/aigc/generate', { method: 'POST', body: JSON.stringify({ prompt: `以下是一段多轮对话，请以 AI 助手的身份自然回复最后一条用户消息：\n${history}\nAI：`, featureCode: 'copywriting' }) })
     const d = await r.json()
     if (d.code !== 200) throw new Error(d.msg || '对话失败')
-    chatMessages.value.push({ role: 'ai', content: d.data.content })
+    const content = String(d.data.content || '')
+    chatMessages.value.push({ role: 'ai', content: '' })
+    chatStreaming.value = true
+    for (let i = 0; i < content.length; i += 3) {
+      chatMessages.value[chatMessages.value.length - 1].content += content.slice(i, i + 3)
+      saveChatMemory()
+      await new Promise(resolve => setTimeout(resolve, 12))
+    }
     balance.value = Number(d.data.balance)
-  } catch (e: any) { chatMessages.value.push({ role: 'ai', content: '⚠️ ' + (e.message || '对话失败') }) } finally { chatting.value = false }
+  } catch (e: any) { chatMessages.value.push({ role: 'ai', content: '⚠️ ' + (e.message || '对话失败') }); saveChatMemory() } finally { chatStreaming.value = false; chatting.value = false }
 }
 
 // ============ AI 绘画 ============
@@ -653,20 +677,33 @@ async function submitGptImage() {
   if (!userToken.value) { openLogin(); return }
   if (!instruction) { ElMessage.warning('请输入你想生成或修改的图片'); return }
   if (!drawModel.value) { ElMessage.warning('后台尚未启用图片生成模型'); return }
-  const sourceUrl = drawUrl.value || undefined
-  const prompt = sourceUrl
-    ? `请基于当前图片进行修改。保持没有明确要求修改的主体、构图和细节不变，只执行以下要求：${instruction}`
-    : instruction
+  const referenceImages = drawUrl.value ? [drawUrl.value] : gptImageReferenceUrls.value
+  const sourceUrl = referenceImages[0] || undefined
+  // GPT 图片接口只接受固定尺寸；提示词里的 1080*1920 等自定义尺寸按宽高比映射到最接近的接口尺寸。
+  const explicitSize = instruction.match(/(\d{3,5})\s*[x×*＊]\s*(\d{3,5})/i)
+  let sizeHint = '1024x1024'
+  if (explicitSize) {
+    const width = Number(explicitSize[1])
+    const height = Number(explicitSize[2])
+    if (width > 0 && height > 0) sizeHint = width >= height ? '1536x1024' : '1024x1536'
+  } else if (/横版|横向|宽屏|16\s*[:：/]\s*9|4\s*[:：/]\s*3/i.test(instruction)) {
+    sizeHint = '1536x1024'
+  } else if (/竖版|纵向|长图|手机|9\s*[:：/]\s*16|3\s*[:：/]\s*4/i.test(instruction)) {
+    sizeHint = '1024x1536'
+  }
+  const context = gptFileContext.value ? `\n\n参考文件上下文（仅用于理解，不要把文件内容原样写入图片）：\n${gptFileContext.value}` : ''
+  const prompt = (sourceUrl ? `请基于当前图片进行修改。保持没有明确要求修改的主体、构图和细节不变，只执行以下要求：${instruction}` : instruction) + context
   drawing.value = true
   try {
     const r = await apiFetch('/aigc/image/generate', {
       method: 'POST',
-      body: JSON.stringify({ featureCode: 'gpt_image', model: drawModel.value, prompt, size: '1024x1024', imageUrl: sourceUrl })
+      body: JSON.stringify({ featureCode: 'gpt_image', model: drawModel.value, prompt, size: sizeHint, imageUrl: sourceUrl, imageUrls: referenceImages.length ? referenceImages : undefined })
     })
     const d = await r.json()
     if (d.code !== 200) throw new Error(d.msg || '图片生成失败')
-    const item: DrawResult = { url: d.data.url, prompt: instruction, model: d.data.model || drawModel.value, createdAt: new Date().toLocaleString() }
-    drawHistory.value.unshift(item)
+    const item: DrawResult = { url: d.data.url, prompt: instruction, model: d.data.model || drawModel.value, createdAt: new Date().toLocaleString(), references: [...referenceImages] }
+    gptImageHistory.value.push(item)
+    saveGptImageHistory()
     selectDrawResult(item)
     balance.value = Number(d.data.balance)
     gptImageInput.value = ''
@@ -679,7 +716,54 @@ function startNewGptImage() {
   drawUrl.value = ''
   drawUsedModel.value = ''
   gptImageInput.value = ''
+  gptImageReferenceUrls.value = []
 }
+
+async function uploadGptReference(ev: any) {
+  const file = ev?.target?.files?.[0]
+  if (!file) return
+  if (gptImageReferenceUrls.value.length >= 10) { ElMessage.warning('最多上传 10 张参考图片'); return }
+  if (!userToken.value) { openLogin(); return }
+  if (!file.type.startsWith('image/')) { ElMessage.warning('请上传图片文件'); return }
+  if (file.size > 10 * 1024 * 1024) { ElMessage.warning('参考图片不能超过 10MB'); return }
+  gptImageUploading.value = true
+  try {
+    const fd = new FormData(); fd.append('file', file)
+    const r = await secureFetch('/resource/oss/upload', { method: 'POST', headers: { clientid: 'aigc-web', Authorization: 'Bearer ' + userToken.value }, body: fd })
+    const d = await r.json(); if (d.code !== 200) throw new Error(d.msg || '上传失败')
+    gptImageReferenceUrls.value.push(d.data.url)
+    drawUrl.value = ''
+    drawUsedModel.value = ''
+    ElMessage.success(`参考图片已上传（${gptImageReferenceUrls.value.length}/10）`)
+  } catch (e: any) { ElMessage.error(e.message || '参考图片上传失败') } finally { gptImageUploading.value = false }
+}
+
+function openGptReferencePicker() { document.getElementById('gpt-image-reference-file')?.click() }
+function removeGptReference(url: string) { gptImageReferenceUrls.value = gptImageReferenceUrls.value.filter(item => item !== url) }
+function openGptFilePicker() { gptAttachmentMenu.value = false; document.getElementById('gpt-file-input')?.click() }
+async function readGptFile(ev: any) {
+  const file = ev?.target?.files?.[0]
+  if (!file) return
+  const textLike = file.type.startsWith('text/') || /\.(txt|md|csv|json|html?)$/i.test(file.name)
+  if (!textLike) { ElMessage.warning('当前支持 TXT、MD、CSV、JSON 和 HTML 文件；PDF/Word 请先导出为文本'); return }
+  if (file.size > 2 * 1024 * 1024) { ElMessage.warning('描述文件不能超过 2MB'); return }
+  try {
+    gptFileContext.value = (await file.text()).slice(0, 12000)
+    gptFileName.value = file.name
+    ElMessage.success('文件内容已加入提示词上下文')
+  } catch { ElMessage.error('文件读取失败') }
+  if (ev.target) ev.target.value = ''
+}
+function addGptLink() {
+  gptAttachmentMenu.value = false
+  const url = window.prompt('输入公开链接')?.trim()
+  if (!url) return
+  try { new URL(url) } catch { ElMessage.warning('请输入有效的 http/https 链接'); return }
+  gptFileName.value = url
+  gptFileContext.value = `请参考这个公开链接中的内容：${url}`
+  ElMessage.success('公开链接已加入上下文')
+}
+function clearGptFile() { gptFileName.value = ''; gptFileContext.value = '' }
 
 async function downloadDraw() {
   if (!drawUrl.value) return
@@ -986,7 +1070,7 @@ async function pollPayment(orderNo: string) {
 
       <!-- AI 对话 -->
       <div v-else-if="selected.key === 'chat'" class="workspace chat-ws workspace-chat">
-        <div class="ws-head"><div class="ws-title"><span class="tool-icon sm" style="background:#22d3ee22;color:#22d3ee"><Bot :size="17"/></span><b>AI 对话</b><small>多轮智能对话</small></div></div>
+        <div class="ws-head"><div class="ws-title"><span class="tool-icon sm" style="background:#22d3ee22;color:#22d3ee"><Bot :size="17"/></span><b>AI 对话</b><small>多轮智能对话 · 自动记忆</small></div><button v-if="chatMessages.length" class="ghost-btn" @click="clearChatMemory">清空记忆</button></div>
         <div class="chat-box">
           <div class="chat-msgs">
             <template v-if="chatMessages.length === 0"><div class="empty"><Bot :size="40" opacity=".3"/><span>开始和 AI 对话吧</span></div></template>
@@ -1006,27 +1090,40 @@ async function pollPayment(orderNo: string) {
       <div v-else-if="selected.key === 'gpt_image'" class="workspace workspace-gpt-image">
         <div class="gpt-image-head">
           <div><h2>图片生成</h2><p>描述你想创建的图片，选中结果后继续输入即可修改</p></div>
-          <button v-if="drawUrl" class="gpt-new-image" @click="startNewGptImage"><Sparkles :size="15"/> 新图片</button>
+          <div class="gpt-head-actions"><button v-if="gptImageHistory.length" class="gpt-new-image" @click="clearGptImageHistory">清空记录</button><button class="gpt-new-image" @click="startNewGptImage"><Sparkles :size="15"/> 新图片</button></div>
         </div>
 
         <div class="gpt-image-stage">
-          <div v-if="!drawHistory.length" class="gpt-image-empty">
+          <div v-if="!gptImageHistory.length" class="gpt-image-empty">
             <span><Sparkles :size="25"/></span>
             <h3>想象一张图片</h3>
             <p>在下方输入一句话，AI 会为你生成</p>
           </div>
-          <div v-else class="gpt-image-gallery">
-            <button v-for="(item, i) in drawHistory" :key="item.url + i" class="gpt-image-card" :class="{selected: item.url === drawUrl}" @click="selectDrawResult(item)">
-              <img :src="item.url" :alt="item.prompt"/>
-              <span v-if="item.url === drawUrl">继续修改此图</span>
-            </button>
+          <div v-else class="gpt-image-thread">
+            <article v-for="(item, i) in gptImageHistory" :key="item.url + i" class="gpt-turn">
+              <div class="gpt-user-message"><div v-if="item.references?.length" class="gpt-turn-refs"><img v-for="url in item.references" :key="url" :src="url" alt="参考图"/></div><p>{{ item.prompt }}</p></div>
+              <button class="gpt-image-reply" :class="{selected: item.url === drawUrl}" @click="selectDrawResult(item)"><img :src="item.url" :alt="item.prompt"/><span>模型：{{ item.model }} · {{ item.createdAt }}</span><b v-if="item.url === drawUrl">正在基于此图修改</b></button>
+            </article>
+            <div v-if="drawing" class="gpt-generating"><Sparkles :size="16"/> 正在生成图片…</div>
           </div>
         </div>
 
+        <div v-if="gptFileName" class="gpt-context-chip"><FileText :size="15"/><span>{{ gptFileName }}</span><button title="移除文件上下文" @click="clearGptFile"><X :size="14"/></button></div>
         <div class="gpt-image-composer">
           <div v-if="drawUrl" class="gpt-editing-chip"><img :src="drawUrl" alt="当前参考图"/><span>基于这张图片修改</span><button title="取消选中，生成全新图片" @click="startNewGptImage"><X :size="14"/></button></div>
+          <div v-else-if="gptImageReferenceUrls.length" class="gpt-reference-strip"><div v-for="url in gptImageReferenceUrls" :key="url" class="gpt-reference-chip"><img :src="url" alt="上传的参考图"/><button title="移除参考图" @click="removeGptReference(url)"><X :size="13"/></button></div><span>已添加 {{ gptImageReferenceUrls.length }} 张参考图</span></div>
           <textarea v-model="gptImageInput" rows="1" :placeholder="drawUrl ? '告诉我需要怎样修改这张图片…' : '描述一张新图片…'" @keydown.enter.exact.prevent="submitGptImage"></textarea>
           <div class="gpt-composer-tools">
+            <input id="gpt-image-reference-file" type="file" accept="image/*" style="display:none" @change="uploadGptReference"/>
+            <input id="gpt-file-input" type="file" accept=".txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,text/csv,application/json,text/html" style="display:none" @change="readGptFile"/>
+            <div class="gpt-attach-wrap">
+              <button class="gpt-upload" title="添加上下文" @click="gptAttachmentMenu = !gptAttachmentMenu"><Plus :size="17"/></button>
+              <div v-if="gptAttachmentMenu" class="gpt-attach-menu">
+                <button @click="openGptReferencePicker"><ImageIcon :size="16"/> 图片</button>
+                <button @click="addGptLink"><Globe2 :size="16"/> 公开链接</button>
+                <button @click="openGptFilePicker"><FileText :size="16"/> 文档</button>
+              </div>
+            </div>
             <div class="gpt-model-picker"><Sparkles :size="14"/><select v-model="drawModel" aria-label="生图模型"><option v-for="model in drawModels" :key="model.model_code" :value="model.model_code">{{ model.model_name || model.model_code }}</option></select></div>
             <span v-if="drawUsedModel" class="gpt-used-model">实际使用 {{ drawUsedModel }}</span>
             <button class="gpt-download" :disabled="!drawUrl" title="下载选中图片" @click="downloadDraw"><Download :size="16"/></button>
@@ -1531,4 +1628,10 @@ async function pollPayment(orderNo: string) {
 @media(max-width:700px){.mobile-menu{display:block;flex:none}.topbar{height:60px}.brand{font-size:15px;gap:7px}.brand-mark{width:30px;height:30px}.top-right .balance-pill,.top-right .ghost-btn{display:none}.layout{position:relative}.mobile-backdrop{display:block;position:fixed;inset:60px 0 0;background:#0b122466;z-index:20}.sidebar{position:fixed;left:0;top:60px;bottom:0;z-index:21;width:260px!important;transform:translateX(-102%);transition:transform .22s ease;min-height:0!important;padding:18px 12px;overflow-y:auto}.sidebar.is-open{transform:translateX(0)}.sidebar .nav-item span,.sidebar .nav-group{display:block}.sidebar .nav-item{justify-content:flex-start;padding:0 12px}.sidebar .nav-item svg{margin:0}.main{width:100%;padding:18px 14px 78px}.home-hero{min-height:0;padding:27px 20px 22px;margin-bottom:25px;border-radius:16px}.hero-title{font-size:32px;margin-top:10px}.hero-sub{font-size:13px;line-height:1.65}.hero-actions{flex-wrap:wrap}.hero-primary,.hero-secondary{padding:10px 13px}.hero-orbit{display:none}.section-label{align-items:flex-start;flex-direction:column;gap:4px;margin-bottom:12px}.section-label h2{font-size:18px}.section-note{padding:0}.quick-grid{grid-template-columns:1fr;gap:9px}.quick-card{min-height:72px;padding:12px}.tool-library .tool-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tool-library .tool-card{min-height:108px;padding:14px 12px}.tool-library .tool-card b{font-size:12px}.tool-library .tool-card small{font-size:10px}.workspace{width:100%}.ws-head{align-items:flex-start;gap:12px;flex-wrap:wrap}.ws-title{min-width:0}.ws-title small{display:none}.ws-actions{width:100%;gap:7px}.ws-actions .ghost-btn{flex:1}.ws-body{display:flex;flex-direction:column;gap:12px}.form-panel,.result-panel{width:100%;padding:16px;border-radius:12px}.form-panel textarea{min-height:150px}.result-panel{min-height:330px}.chat-box{height:calc(100vh - 156px);min-height:460px}.chat-msgs{padding:16px}.chat-input{padding:12px}.chat-input .gen-btn{padding:10px 15px}.media-upload{align-items:flex-start;flex-wrap:wrap}.media-upload small{width:100%;margin-left:45px}.account-summary{grid-template-columns:1fr 1fr}.account-summary>button{grid-column:1/-1}.package-grid{grid-template-columns:1fr}.custom-recharge{align-items:flex-start;flex-wrap:wrap}.home-group{margin-bottom:20px}}
 @media(max-width:700px){.workspace-gpt-image{min-height:calc(100vh - 150px);padding-bottom:0}.gpt-image-head{padding:0 2px 14px}.gpt-image-head h2{font-size:21px}.gpt-image-head p{display:none}.gpt-new-image{height:34px}.gpt-image-stage{min-height:300px;padding:2px 0 18px}.gpt-image-empty{min-height:300px}.gpt-image-gallery{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.gpt-image-composer{bottom:8px;border-radius:15px;padding:8px 9px}.gpt-image-composer textarea{min-height:44px;padding:8px 5px;font-size:14px}.gpt-model-picker select{max-width:125px}.gpt-used-model{display:none}}
 @media(max-width:700px){.skill-route{align-items:flex-start}.skill-route small{margin:2px 0 0;font-size:11px;line-height:1.45}}
+.gpt-upload,.gpt-size-picker{height:32px;border:1px solid #e1e6ed;border-radius:8px;background:#fafbfc;color:#536681;cursor:pointer}.gpt-upload{width:34px;display:grid;place-items:center}.gpt-upload:disabled{opacity:.5;cursor:wait}.gpt-size-picker{padding:0 8px;font:inherit;font-size:12px;outline:0;max-width:150px}
+.workspace-gpt-image{width:min(100%,1080px);max-width:1080px;min-height:0;padding:0 0 28px}.workspace-gpt-image .gpt-image-stage{min-height:clamp(320px,calc(100vh - 390px),560px)}.workspace-gpt-image .gpt-image-empty{min-height:320px}.workspace-gpt-image .gpt-image-composer{margin:0 4px;bottom:16px;z-index:2}
+.gpt-context-chip{display:flex;align-items:center;gap:8px;width:min(100%,1080px);box-sizing:border-box;margin:0 4px 10px;padding:9px 12px;border:1px solid #dce5f1;border-radius:10px;background:#fbfcff;color:#536681;font-size:12px}.gpt-context-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gpt-context-chip button{margin-left:auto;display:grid;place-items:center;border:0;background:transparent;color:#8a98ad;cursor:pointer}.gpt-attach-wrap{position:relative}.gpt-attach-menu{position:absolute;left:0;bottom:42px;z-index:5;width:170px;padding:7px;border:1px solid #dbe3ef;border-radius:9px;background:#fff;box-shadow:0 12px 28px #17233a1c}.gpt-attach-menu button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:7px;background:transparent;color:#334155;text-align:left;font:inherit;font-size:12px;cursor:pointer}.gpt-attach-menu button:hover{background:#f0f4fa}
+.gpt-reference-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 5px 8px;color:#718096;font-size:12px}.gpt-reference-chip{position:relative;width:38px;height:38px}.gpt-reference-chip img{width:38px;height:38px;border-radius:7px;object-fit:cover;border:1px solid #dce5ef}.gpt-reference-chip button{position:absolute;right:-5px;top:-5px;width:17px;height:17px;display:grid;place-items:center;padding:0;border:1px solid #fff;border-radius:50%;background:#26344b;color:#fff;cursor:pointer}
+.gpt-head-actions{display:flex;align-items:center;gap:8px;flex:none}.gpt-image-thread{width:min(100%,820px);margin:0 auto;display:flex;flex-direction:column;gap:24px;padding:8px 0 24px}.gpt-turn{display:flex;flex-direction:column;gap:10px}.gpt-user-message{align-self:flex-end;width:min(78%,620px);padding:12px 14px;border:1px solid #dbe4f4;border-radius:14px 14px 4px 14px;background:#f2f6ff;color:#27344b}.gpt-user-message p{margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}.gpt-turn-refs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}.gpt-turn-refs img{width:42px;height:42px;border-radius:7px;object-fit:cover;border:1px solid #cdd9ec}.gpt-image-reply{align-self:flex-start;position:relative;width:min(78%,460px);padding:0;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#f1f3f6;cursor:pointer;text-align:left;box-shadow:0 8px 24px #18243b12;transition:border-color .15s,box-shadow .15s}.gpt-image-reply:hover{border-color:#a9bde8;box-shadow:0 12px 28px #18243b1c}.gpt-image-reply.selected{border-color:#3158e8;box-shadow:0 0 0 3px #3158e81c,0 12px 28px #18243b1c}.gpt-image-reply img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#eef1f5}.gpt-image-reply span{display:block;padding:8px 10px;color:#728098;background:#fff;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gpt-image-reply b{position:absolute;right:9px;bottom:39px;padding:5px 8px;border-radius:6px;background:#3158e8e8;color:#fff;font-size:11px;font-weight:600}.gpt-generating{align-self:flex-start;display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px dashed #b9c9e8;border-radius:12px;background:#f7f9ff;color:#60749c;font-size:13px}.gpt-generating svg{color:#3158e8;animation:gpt-pulse 1.2s ease-in-out infinite}@keyframes gpt-pulse{50%{opacity:.35;transform:scale(.88)}}
+@media(max-width:700px){.gpt-head-actions{gap:5px}.gpt-head-actions .gpt-new-image{padding:0 9px;font-size:12px}.gpt-image-thread{gap:18px;padding-top:2px}.gpt-user-message,.gpt-image-reply{width:92%}.gpt-user-message{padding:10px 12px}.gpt-user-message p{font-size:13px}.gpt-image-reply img{max-height:none}.gpt-image-reply b{bottom:38px}}
 </style>
