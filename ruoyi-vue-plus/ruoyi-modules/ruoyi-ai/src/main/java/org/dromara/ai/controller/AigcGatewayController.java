@@ -32,6 +32,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -45,10 +48,20 @@ import java.util.UUID;
 @RequestMapping("/aigc")
 @RequiredArgsConstructor
 public class AigcGatewayController {
+    private static final int MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+    private static final int MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024;
+    private static final int MAX_REFERENCE_TOTAL_BYTES = 30 * 1024 * 1024;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactionTemplate;
-    private final HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+    private final HttpClient httpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(15))
+        .followRedirects(HttpClient.Redirect.NORMAL)
+        .build();
+    private final HttpClient referenceHttpClient = HttpClient.newBuilder()
+        .connectTimeout(Duration.ofSeconds(15))
+        .followRedirects(HttpClient.Redirect.NEVER)
+        .build();
     @Value("${aigc.gateway.base-url:https://xiaoli-api.xyz}") private String baseUrl;
     @Value("${aigc.gateway.api-key:}") private String apiKey;
     @Value("${aigc.gateway.image-api-key:}") private String imageApiKey;
@@ -732,7 +745,9 @@ public class AigcGatewayController {
             if (request.quality() != null && !request.quality().isBlank()) payload.put("quality", request.quality());
             if (request.background() != null && !request.background().isBlank()) payload.put("background", request.background());
             if (request.outputFormat() != null && !request.outputFormat().isBlank()) payload.put("output_format", request.outputFormat());
-            HttpResponse<String> response = sendJson("/v1/images/generations", "POST", token, objectMapper.writeValueAsString(payload));
+            HttpResponse<String> response = referenceImages.isEmpty()
+                ? sendJson("/v1/images/generations", "POST", token, objectMapper.writeValueAsString(payload))
+                : sendImageEdit(token, payload, referenceImages);
             JsonNode root = objectMapper.readTree(response.body());
             if (response.statusCode() / 100 != 2) {
                 String message = "绘图失败：" + providerError(root, response.body());
@@ -740,7 +755,9 @@ public class AigcGatewayController {
                 return R.fail(message + "，本次扣费已退回");
             }
             String url = root.path("data").path(0).path("url").asText();
-            if (url.isBlank()) {
+            if (!url.isBlank()) {
+                url = persistRemoteImage(url, token);
+            } else {
                 String encoded = root.path("data").path(0).path("b64_json").asText();
                 if (!encoded.isBlank()) url = persistBase64Image(encoded, request.outputFormat());
             }
@@ -748,7 +765,7 @@ public class AigcGatewayController {
                 refund(charge, "绘图接口未返回图片地址");
                 return R.fail("绘图接口未返回图片地址，本次扣费已退回");
             }
-            long balance = complete(charge, url);
+            long balance = completeImage(charge, url);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("url", url);
             result.put("model", selectedModel);
@@ -768,6 +785,110 @@ public class AigcGatewayController {
         return normalized.matches(".*(gpt[-_]?image|image[-_]?1).*" );
     }
 
+    private HttpResponse<String> sendImageEdit(String token, Map<String, Object> payload, List<String> referenceImages) throws Exception {
+        String boundary = "----AigcImageEdit" + UUID.randomUUID().toString().replace("-", "");
+        ByteArrayOutputStream body = new ByteArrayOutputStream();
+        writeMultipartField(body, boundary, "model", Objects.toString(payload.get("model"), ""));
+        writeMultipartField(body, boundary, "prompt", Objects.toString(payload.get("prompt"), ""));
+        writeOptionalMultipartField(body, boundary, "size", payload.get("size"));
+        writeOptionalMultipartField(body, boundary, "quality", payload.get("quality"));
+        writeOptionalMultipartField(body, boundary, "background", payload.get("background"));
+        writeOptionalMultipartField(body, boundary, "output_format", payload.get("output_format"));
+
+        int totalBytes = 0;
+        String imageField = referenceImages.size() == 1 ? "image" : "image[]";
+        for (int i = 0; i < referenceImages.size(); i++) {
+            ReferenceImage image = downloadReferenceImage(referenceImages.get(i), i);
+            totalBytes += image.bytes().length;
+            if (totalBytes > MAX_REFERENCE_TOTAL_BYTES) {
+                throw new IllegalStateException("参考图片总大小超过 30MB 限制");
+            }
+            writeMultipartImage(body, boundary, imageField, image);
+        }
+        body.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+
+        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(gatewayBaseUrl() + "/v1/images/edits"))
+            .timeout(Duration.ofSeconds(180))
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+            .header(HttpHeaders.CONTENT_TYPE, "multipart/form-data; boundary=" + boundary)
+            .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
+            .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void writeOptionalMultipartField(ByteArrayOutputStream body, String boundary, String name, Object value) throws Exception {
+        String text = clean(Objects.toString(value, ""));
+        if (!text.isBlank()) writeMultipartField(body, boundary, name, text);
+    }
+
+    private void writeMultipartField(ByteArrayOutputStream body, String boundary, String name, String value) throws Exception {
+        body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + name + "\"\r\n\r\n")
+            .getBytes(StandardCharsets.UTF_8));
+        body.write(value.getBytes(StandardCharsets.UTF_8));
+        body.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeMultipartImage(ByteArrayOutputStream body, String boundary, String fieldName, ReferenceImage image) throws Exception {
+        body.write(("--" + boundary + "\r\nContent-Disposition: form-data; name=\"" + fieldName +
+            "\"; filename=\"" + image.filename() + "\"\r\nContent-Type: " + image.contentType() + "\r\n\r\n")
+            .getBytes(StandardCharsets.UTF_8));
+        body.write(image.bytes());
+        body.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private ReferenceImage downloadReferenceImage(String rawUrl, int index) throws Exception {
+        URI uri = URI.create(clean(rawUrl));
+        if (!"https".equalsIgnoreCase(uri.getScheme()) || !isTrustedOssHost(uri.getHost())) {
+            throw new IllegalStateException("参考图片必须来自本站文件存储");
+        }
+        HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(Duration.ofSeconds(45))
+            .header(HttpHeaders.ACCEPT, "image/*")
+            .GET()
+            .build();
+        HttpResponse<InputStream> response = referenceHttpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        try (InputStream input = response.body()) {
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("读取参考图片失败，HTTP " + response.statusCode());
+            }
+            String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE)
+                .orElse("").split(";", 2)[0].trim().toLowerCase();
+            String extension = imageExtension(contentType);
+            if (extension.isBlank()) throw new IllegalStateException("参考文件不是受支持的图片格式");
+            long declaredLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH).orElse(-1);
+            if (declaredLength > MAX_REFERENCE_IMAGE_BYTES) {
+                throw new IllegalStateException("单张参考图片超过 10MB 限制");
+            }
+            byte[] bytes = input.readNBytes(MAX_REFERENCE_IMAGE_BYTES + 1);
+            if (bytes.length == 0) throw new IllegalStateException("参考图片为空");
+            if (bytes.length > MAX_REFERENCE_IMAGE_BYTES) throw new IllegalStateException("单张参考图片超过 10MB 限制");
+            return new ReferenceImage(bytes, contentType, "reference-" + (index + 1) + "." + extension);
+        }
+    }
+
+    private boolean isTrustedOssHost(String host) {
+        if (host == null || host.isBlank()) return false;
+        for (Map<String, Object> row : jdbc.queryForList("select endpoint,domain_url from sys_oss_config where status='Y'")) {
+            for (String key : List.of("endpoint", "domain_url")) {
+                String configuredHost = configuredHost(Objects.toString(row.get(key), ""));
+                if (!configuredHost.isBlank() && (host.equalsIgnoreCase(configuredHost)
+                    || host.toLowerCase().endsWith("." + configuredHost.toLowerCase()))) return true;
+            }
+        }
+        return false;
+    }
+
+    private String configuredHost(String value) {
+        String configured = clean(value);
+        if (configured.isBlank()) return "";
+        try {
+            URI uri = URI.create(configured.contains("://") ? configured : "https://" + configured);
+            return Objects.toString(uri.getHost(), "");
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
     private String persistBase64Image(String encoded, String outputFormat) {
         try {
             int comma = encoded.indexOf(',');
@@ -776,14 +897,93 @@ public class AigcGatewayController {
             String extension = clean(outputFormat).toLowerCase();
             if (!extension.matches("png|jpeg|jpg|webp")) extension = "png";
             String contentType = extension.equals("png") ? "image/png" : extension.equals("webp") ? "image/webp" : "image/jpeg";
-            OssClient oss = OssFactory.instance();
-            String key = "aigc/image/" + UUID.randomUUID().toString().replace("-", "") + "." + extension;
-            PutObjectResult result = oss.upload(key, bytes, Options.builder().setContentType(contentType));
-            return result.url();
+            return persistImageBytes(bytes, contentType, extension);
         } catch (Exception ex) {
             log.warn("persist GPT Image base64 result to OSS failed: {}", ex.getMessage());
             return "";
         }
+    }
+
+    private String persistRemoteImage(String rawUrl, String token) throws Exception {
+        URI gatewayUri = URI.create(gatewayBaseUrl() + "/");
+        URI imageUri = gatewayUri.resolve(clean(rawUrl));
+        String scheme = imageUri.getScheme() == null ? "" : imageUri.getScheme().toLowerCase();
+        if (!scheme.equals("http") && !scheme.equals("https")) {
+            throw new IllegalStateException("上游返回了不支持的图片地址");
+        }
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder(imageUri)
+            .timeout(Duration.ofSeconds(90))
+            .header(HttpHeaders.ACCEPT, "image/*")
+            .GET();
+        if (sameOrigin(gatewayUri, imageUri)) {
+            builder.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        }
+
+        HttpResponse<InputStream> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+        try (InputStream input = response.body()) {
+            if (response.statusCode() / 100 != 2) {
+                throw new IllegalStateException("下载上游图片失败，HTTP " + response.statusCode());
+            }
+            String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE)
+                .orElse("").split(";", 2)[0].trim().toLowerCase();
+            String extension = imageExtension(contentType);
+            if (extension.isBlank()) {
+                throw new IllegalStateException("上游返回的内容不是受支持的图片格式");
+            }
+            long declaredLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH).orElse(-1);
+            if (declaredLength > MAX_IMAGE_BYTES) {
+                throw new IllegalStateException("上游图片超过 25MB 限制");
+            }
+            byte[] bytes = input.readNBytes(MAX_IMAGE_BYTES + 1);
+            if (bytes.length == 0) throw new IllegalStateException("上游返回了空图片");
+            if (bytes.length > MAX_IMAGE_BYTES) throw new IllegalStateException("上游图片超过 25MB 限制");
+            return persistImageBytes(bytes, contentType, extension);
+        }
+    }
+
+    private boolean sameOrigin(URI left, URI right) {
+        int leftPort = left.getPort() >= 0 ? left.getPort() : left.getScheme().equalsIgnoreCase("https") ? 443 : 80;
+        int rightPort = right.getPort() >= 0 ? right.getPort() : right.getScheme().equalsIgnoreCase("https") ? 443 : 80;
+        return left.getScheme().equalsIgnoreCase(right.getScheme())
+            && Objects.equals(left.getHost(), right.getHost())
+            && leftPort == rightPort;
+    }
+
+    private String imageExtension(String contentType) {
+        return switch (contentType) {
+            case "image/png" -> "png";
+            case "image/jpeg", "image/jpg" -> "jpg";
+            case "image/webp" -> "webp";
+            case "image/gif" -> "gif";
+            case "image/avif" -> "avif";
+            default -> "";
+        };
+    }
+
+    private String persistImageBytes(byte[] bytes, String contentType, String extension) {
+        OssClient oss = OssFactory.instance();
+        String key = "aigc/image/" + UUID.randomUUID().toString().replace("-", "") + "." + extension;
+        PutObjectResult result = oss.upload(key, bytes, Options.builder().setContentType(contentType));
+        String url = clean(result.url());
+        if (url.isBlank()) throw new IllegalStateException("图片已上传但未获得访问地址");
+        return url;
+    }
+
+    private long completeImage(Charge charge, String url) {
+        Long balance = transactionTemplate.execute(status -> {
+            try {
+                String resultBody = objectMapper.writeValueAsString(Map.of("url", url));
+                int updated = jdbc.update("update aigc_task set status='SUCCESS',result_body=?,error_message=null where task_no=? and status='RUNNING'",
+                    resultBody, charge.taskNo());
+                if (updated != 1) throw new IllegalStateException("计费任务状态异常");
+                return ((Number) jdbc.queryForMap("select balance from aigc_user_account where user_id=?", charge.userId()).get("balance")).longValue();
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
+            }
+        });
+        if (balance == null) throw new IllegalStateException("无法读取账户余额");
+        return balance;
     }
 
     /** Pull all models visible to the configured key into the admin model catalog. */
@@ -859,19 +1059,21 @@ public class AigcGatewayController {
         String token = gatewayApiKey();
         if (token.isBlank()) throw new IllegalStateException("请先配置中转站 API Key");
         try {
-            HttpRequest req = HttpRequest.newBuilder().uri(URI.create(gatewayBaseUrl() + "/v1/models"))
-                .timeout(Duration.ofSeconds(30)).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build();
-            HttpResponse<String> response = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 401) throw new IllegalStateException("中转站 API Key 无效或已失效，请重新申请并配置 XIAOLI_API_KEY");
-            if (response.statusCode() / 100 != 2) throw new IllegalStateException("模型列表获取失败：HTTP " + response.statusCode());
-            JsonNode data = objectMapper.readTree(response.body()).path("data");
+            Map<String, JsonNode> models = new LinkedHashMap<>();
+            mergeGatewayModels(models, token, "XIAOLI_API_KEY");
+            String imageToken = imageGatewayApiKey();
+            if (!imageToken.isBlank() && !imageToken.equals(token)) {
+                mergeGatewayModels(models, imageToken, "XIAOLI_IMAGE_API_KEY");
+            }
             Long gatewayId = jdbc.queryForObject("select id from aigc_gateway where gateway_code='xiaoli' limit 1", Long.class);
             if (gatewayId == null) throw new IllegalStateException("请先初始化小李中转站渠道");
-            // Models not returned as OpenAI-compatible text chat models are hidden from users.
+            // The normal and image keys can expose different catalogs. Only disable
+            // models after both catalogs have been fetched successfully.
             jdbc.update("update aigc_gateway_model set enabled='0' where gateway_id=?", gatewayId);
             int count = 0;
-            for (JsonNode model : data) {
-                String code = model.path("id").asText(); if (code.isBlank()) continue;
+            for (Map.Entry<String, JsonNode> entry : models.entrySet()) {
+                String code = entry.getKey();
+                JsonNode model = entry.getValue();
                 String capability = modelCapability(model, code);
                 if (capability == null) continue;
                 jdbc.update("insert into aigc_gateway_model(gateway_id,model_code,model_name,capability,enabled,cost_credits) values(?,?,?,?,'1',1) on duplicate key update model_name=values(model_name),capability=values(capability),enabled='1'", gatewayId, code, code, capability);
@@ -879,6 +1081,22 @@ public class AigcGatewayController {
             }
             return Map.of("count", count);
         } catch (Exception ex) { log.error("sync gateway models failed", ex); throw new IllegalStateException("模型列表同步失败：" + ex.getMessage(), ex); }
+    }
+
+    private void mergeGatewayModels(Map<String, JsonNode> target, String token, String keyName) throws Exception {
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(gatewayBaseUrl() + "/v1/models"))
+            .timeout(Duration.ofSeconds(30)).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).GET().build();
+        HttpResponse<String> response = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() == 401) throw new IllegalStateException(keyName + " 无效或已失效");
+        if (response.statusCode() / 100 != 2) {
+            throw new IllegalStateException(keyName + " 模型列表获取失败：HTTP " + response.statusCode());
+        }
+        JsonNode data = objectMapper.readTree(response.body()).path("data");
+        if (!data.isArray()) throw new IllegalStateException(keyName + " 模型列表格式异常");
+        for (JsonNode model : data) {
+            String code = model.path("id").asText();
+            if (!code.isBlank()) target.put(code, model);
+        }
     }
 
     private boolean supportsTextChat(JsonNode model, String code) {
@@ -907,6 +1125,7 @@ public class AigcGatewayController {
         return supportsTextChat(model, code) ? "chat" : null;
     }
     private record Charge(String taskNo, Long userId, long cost, long balance) {}
+    private record ReferenceImage(byte[] bytes, String contentType, String filename) {}
     private static class BillingException extends RuntimeException {
         BillingException(String message) { super(message); }
     }

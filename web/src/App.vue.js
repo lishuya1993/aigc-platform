@@ -111,10 +111,12 @@ const gptImageInput = ref('');
 const gptImageReferenceUrls = ref([]);
 const gptImageUploading = ref(false);
 const gptAttachmentMenu = ref(false);
+const gptImageReferenceInput = ref(null);
 const gptFileName = ref('');
 const gptFileContext = ref('');
 const drawHistory = ref([]);
 const gptImageHistory = ref([]);
+const failedDrawUrls = ref(new Set());
 const gptImageMemoryKey = computed(() => `ll_gpt_image_history_${userName.value || 'guest'}`);
 function saveGptImageHistory() { try {
     localStorage.setItem(gptImageMemoryKey.value, JSON.stringify(gptImageHistory.value.slice(-30)));
@@ -127,7 +129,16 @@ function loadGptImageHistory() { try {
 catch {
     gptImageHistory.value = [];
 } }
-function clearGptImageHistory() { gptImageHistory.value = []; localStorage.removeItem(gptImageMemoryKey.value); startNewGptImage(); }
+function drawImageFailed(url) { return failedDrawUrls.value.has(url); }
+function markDrawImageFailed(url) { failedDrawUrls.value = new Set([...failedDrawUrls.value, url]); }
+function markDrawImageLoaded(url) {
+    if (!failedDrawUrls.value.has(url))
+        return;
+    const next = new Set(failedDrawUrls.value);
+    next.delete(url);
+    failedDrawUrls.value = next;
+}
+function clearGptImageHistory() { gptImageHistory.value = []; failedDrawUrls.value = new Set(); localStorage.removeItem(gptImageMemoryKey.value); startNewGptImage(); }
 const productResults = ref([]);
 const drawMode = ref('text');
 const productImageUrl = ref('');
@@ -1162,7 +1173,22 @@ async function uploadGptReference(ev) {
         gptImageUploading.value = false;
     }
 }
-function openGptReferencePicker() { document.getElementById('gpt-image-reference-file')?.click(); }
+function openGptReferencePicker() {
+    gptAttachmentMenu.value = false;
+    const input = gptImageReferenceInput.value;
+    if (!input)
+        return;
+    input.value = '';
+    try {
+        if (typeof input.showPicker === 'function')
+            input.showPicker();
+        else
+            input.click();
+    }
+    catch {
+        input.click();
+    }
+}
 function removeGptReference(url) { gptImageReferenceUrls.value = gptImageReferenceUrls.value.filter(item => item !== url); }
 function openGptFilePicker() { gptAttachmentMenu.value = false; document.getElementById('gpt-file-input')?.click(); }
 async function readGptFile(ev) {
@@ -1461,7 +1487,7 @@ function __VLS_template() {
     const __VLS_ctx = {};
     let __VLS_components;
     let __VLS_directives;
-    ['brand-mark', 'top-search', 'balance-pill', 'user-chip', 'ghost-btn', 'nav-item', 'nav-item', 'nav-item', 'group-head', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'tool-icon', 'ws-title', 'ws-title', 'panel-head', 'panel-head', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'model-select', 'skill-route', 'draw-revise-label', 'draw-revise-label', 'draw-revise', 'draw-revise', 'ghost-btn', 'draw-preview-trigger', 'draw-preview-trigger', 'draw-img', 'draw-actions', 'ghost-btn', 'draw-history-head', 'draw-history-grid', 'draw-history-grid', 'draw-history-grid', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-grid', 'product-result-grid', 'product-result-grid', 'picked', 'product-result-grid', 'product-result-grid', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'form-panel', 'workspace-image', 'workspace-image', 'workspace-image', 'result-empty', 'workspace-image', 'result-empty', 'product-presets', 'product-presets', 'preset-row', 'preset-row', 'picked', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'template-mini', 'template-mini', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'picked', 'template-result-count', 'template-library-card', 'template-library-card', 'picked', 'template-art', 'template-art', 'template-meta', 'template-meta', 'product-fields', 'product-fields', 'product-fields', 'product-result-grid', 'draw-revise-label', 'draw-revise-label', 'draw-revise-row', 'template-library-grid', 'selected-template-card', 'template-mini', 'draw-mode', 'draw-mode', 'picked', 'product-thumb', 'gen-btn', 'gen-btn', 'result-panel', 'result-top', 'result-top', 'dir-tag', 'dir-tag', 'picked', 'result-tabs', 'result-tabs', 'picked', 'revise-box', 'revise-box', 'history-item', 'history-item', 'picked', 'history-item', 'history-item', 'hd-top', 'mat-pick', 'mat-pick', 'mat-pick', 'picked', 'material-card', 'mat-actions', 'ghost-btn', 'material-card', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'result-empty', 'msg', 'msg', 'user', 'bubble', 'msg', 'bubble', 'chat-input', 'chat-input', 'gen-btn', 'size-btn', 'picked', 'draw-img', 'work-card', 'work-card', 'work-card', 'work-card', 'auth-hero', 'auth-hero', 'auth-form', 'auth-form', 'auth-switch', 'code-row', 'code-btn', 'account-dialog', 'account-dialog', 'account-dialog', 'el-tabs__item', 'account-summary', 'account-summary', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'package-item', 'custom-recharge', 'custom-recharge', 'ws-body', 'app', 'topbar', 'brand', 'brand-mark', 'balance-pill', 'balance-pill', 'user-chip', 'ghost-btn', 'ghost-btn', 'sidebar', 'nav-group', 'nav-item', 'nav-item', 'nav-item', 'active', 'nav-item', 'active', 'main', 'hero-title', 'hero-sub', 'group-title', 'tool-grid', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'form-panel', 'result-panel', 'chat-box', 'form-panel', 'panel-head', 'form-panel', 'form-panel', 'model-select', 'chat-input', 'form-panel', 'model-select', 'gen-btn', 'auth-btn', 'gen-btn', 'size-btn', 'picked', 'result-empty', 'empty-icon', 'el-dialog', 'account-dialog', 'el-dialog', 'auth-btn', 'code-btn', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'account-dialog', 'el-tabs__item', 'is-active', 'topbar', 'sidebar', 'main', 'top-search', 'top-right', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'layout', 'sidebar', 'mobile-menu', 'home', 'home-hero', 'hero-title', 'hero-title', 'hero-sub', 'hero-primary', 'hero-secondary', 'section-label', 'quick-card', 'quick-card', 'quick-card', 'quick-card', 'quick-icon', 'quick-icon', 'quick-icon', 'quick-icon', 'tool-library', 'home-group', 'tool-library', 'group-head', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-icon', 'tool-library', 'tool-icon', 'chat-box', 'workspace-chat', 'chat-msgs', 'workspace-chat', 'chat-input', 'workspace-image', 'form-panel', 'form-panel', 'workspace-image', 'result-panel', 'workspace-video', 'result-panel', 'result-panel', 'works-grid', 'works-grid', 'mat-picker', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-composer', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-model-picker', 'gpt-download', 'gpt-download', 'gpt-send', 'gpt-send', 'gpt-send', 'home-hero', 'hero-orbit', 'quick-grid', 'ws-body', 'mobile-menu', 'topbar', 'brand', 'brand-mark', 'top-right', 'balance-pill', 'top-right', 'ghost-btn', 'layout', 'mobile-backdrop', 'sidebar', 'sidebar', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'main', 'home-hero', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'section-label', 'section-label', 'section-note', 'quick-grid', 'quick-card', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'ws-title', 'ws-actions', 'ws-actions', 'ghost-btn', 'ws-body', 'form-panel', 'result-panel', 'form-panel', 'result-panel', 'chat-box', 'chat-msgs', 'chat-input', 'chat-input', 'gen-btn', 'media-upload', 'media-upload', 'account-summary', 'account-summary', 'package-grid', 'custom-recharge', 'home-group', 'workspace-gpt-image', 'gpt-image-head', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-gallery', 'gpt-image-composer', 'gpt-image-composer', 'gpt-model-picker', 'gpt-used-model', 'skill-route', 'skill-route', 'gpt-upload', 'gpt-upload', 'gpt-size-picker', 'workspace-gpt-image', 'workspace-gpt-image', 'gpt-image-stage', 'workspace-gpt-image', 'gpt-image-empty', 'workspace-gpt-image', 'gpt-image-composer', 'gpt-context-chip', 'gpt-context-chip', 'gpt-attach-menu', 'gpt-attach-menu', 'gpt-reference-chip', 'gpt-reference-chip', 'gpt-user-message', 'gpt-turn-refs', 'gpt-image-reply', 'gpt-image-reply', 'selected', 'gpt-image-reply', 'gpt-image-reply', 'gpt-image-reply', 'gpt-generating', 'gpt-head-actions', 'gpt-head-actions', 'gpt-new-image', 'gpt-image-thread', 'gpt-user-message', 'gpt-image-reply', 'gpt-user-message', 'gpt-user-message', 'gpt-image-reply', 'gpt-image-reply',];
+    ['brand-mark', 'top-search', 'balance-pill', 'user-chip', 'ghost-btn', 'nav-item', 'nav-item', 'nav-item', 'group-head', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'tool-icon', 'ws-title', 'ws-title', 'panel-head', 'panel-head', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'model-select', 'skill-route', 'draw-revise-label', 'draw-revise-label', 'draw-revise', 'draw-revise', 'ghost-btn', 'draw-preview-trigger', 'draw-preview-trigger', 'draw-img', 'draw-actions', 'ghost-btn', 'draw-history-head', 'draw-history-grid', 'draw-history-grid', 'draw-history-grid', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-head', 'product-result-grid', 'product-result-grid', 'product-result-grid', 'picked', 'product-result-grid', 'product-result-grid', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'product-fields', 'form-panel', 'workspace-image', 'workspace-image', 'workspace-image', 'result-empty', 'workspace-image', 'result-empty', 'product-presets', 'product-presets', 'preset-row', 'preset-row', 'picked', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'selected-template-card', 'template-mini', 'template-mini', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'template-filter-row', 'picked', 'template-result-count', 'template-library-card', 'template-library-card', 'picked', 'template-art', 'template-art', 'template-meta', 'template-meta', 'product-fields', 'product-fields', 'product-fields', 'product-result-grid', 'draw-revise-label', 'draw-revise-label', 'draw-revise-row', 'template-library-grid', 'selected-template-card', 'template-mini', 'draw-mode', 'draw-mode', 'picked', 'product-thumb', 'gen-btn', 'gen-btn', 'result-panel', 'result-top', 'result-top', 'dir-tag', 'dir-tag', 'picked', 'result-tabs', 'result-tabs', 'picked', 'revise-box', 'revise-box', 'history-item', 'history-item', 'picked', 'history-item', 'history-item', 'hd-top', 'mat-pick', 'mat-pick', 'mat-pick', 'picked', 'material-card', 'mat-actions', 'ghost-btn', 'material-card', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'result-empty', 'msg', 'msg', 'user', 'bubble', 'msg', 'bubble', 'chat-input', 'chat-input', 'gen-btn', 'size-btn', 'picked', 'draw-img', 'work-card', 'work-card', 'work-card', 'work-card', 'auth-hero', 'auth-hero', 'auth-form', 'auth-form', 'auth-switch', 'code-row', 'code-btn', 'account-dialog', 'account-dialog', 'account-dialog', 'el-tabs__item', 'account-summary', 'account-summary', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'package-item', 'custom-recharge', 'custom-recharge', 'ws-body', 'app', 'topbar', 'brand', 'brand-mark', 'balance-pill', 'balance-pill', 'user-chip', 'ghost-btn', 'ghost-btn', 'sidebar', 'nav-group', 'nav-item', 'nav-item', 'nav-item', 'active', 'nav-item', 'active', 'main', 'hero-title', 'hero-sub', 'group-title', 'tool-grid', 'tool-card', 'tool-card', 'tool-card', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'form-panel', 'result-panel', 'chat-box', 'form-panel', 'panel-head', 'form-panel', 'form-panel', 'model-select', 'chat-input', 'form-panel', 'model-select', 'gen-btn', 'auth-btn', 'gen-btn', 'size-btn', 'picked', 'result-empty', 'empty-icon', 'el-dialog', 'account-dialog', 'el-dialog', 'auth-btn', 'code-btn', 'account-summary', 'account-summary', 'package-item', 'package-item', 'package-item', 'package-item', 'account-dialog', 'el-tabs__item', 'is-active', 'topbar', 'sidebar', 'main', 'top-search', 'top-right', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'layout', 'sidebar', 'mobile-menu', 'home', 'home-hero', 'hero-title', 'hero-title', 'hero-sub', 'hero-primary', 'hero-secondary', 'section-label', 'quick-card', 'quick-card', 'quick-card', 'quick-card', 'quick-icon', 'quick-icon', 'quick-icon', 'quick-icon', 'tool-library', 'home-group', 'tool-library', 'group-head', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-icon', 'tool-library', 'tool-icon', 'chat-box', 'workspace-chat', 'chat-msgs', 'workspace-chat', 'chat-input', 'workspace-image', 'form-panel', 'form-panel', 'workspace-image', 'result-panel', 'workspace-video', 'result-panel', 'result-panel', 'works-grid', 'works-grid', 'mat-picker', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'media-upload', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'form-panel', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-empty', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-card', 'gpt-image-composer', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-editing-chip', 'gpt-model-picker', 'gpt-download', 'gpt-download', 'gpt-send', 'gpt-send', 'gpt-send', 'home-hero', 'hero-orbit', 'quick-grid', 'ws-body', 'mobile-menu', 'topbar', 'brand', 'brand-mark', 'top-right', 'balance-pill', 'top-right', 'ghost-btn', 'layout', 'mobile-backdrop', 'sidebar', 'sidebar', 'sidebar', 'nav-item', 'sidebar', 'nav-group', 'sidebar', 'nav-item', 'sidebar', 'nav-item', 'main', 'home-hero', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'section-label', 'section-label', 'section-note', 'quick-grid', 'quick-card', 'tool-library', 'tool-grid', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'tool-library', 'tool-card', 'workspace', 'ws-head', 'ws-title', 'ws-title', 'ws-actions', 'ws-actions', 'ghost-btn', 'ws-body', 'form-panel', 'result-panel', 'form-panel', 'result-panel', 'chat-box', 'chat-msgs', 'chat-input', 'chat-input', 'gen-btn', 'media-upload', 'media-upload', 'account-summary', 'account-summary', 'package-grid', 'custom-recharge', 'home-group', 'workspace-gpt-image', 'gpt-image-head', 'gpt-image-head', 'gpt-image-head', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-gallery', 'gpt-image-composer', 'gpt-image-composer', 'gpt-model-picker', 'gpt-used-model', 'skill-route', 'skill-route', 'gpt-upload', 'gpt-upload', 'gpt-size-picker', 'workspace-gpt-image', 'workspace-gpt-image', 'gpt-image-stage', 'workspace-gpt-image', 'gpt-image-empty', 'workspace-gpt-image', 'gpt-image-composer', 'gpt-context-chip', 'gpt-context-chip', 'gpt-attach-menu', 'gpt-attach-menu', 'gpt-reference-chip', 'gpt-reference-chip', 'gpt-user-message', 'gpt-turn-refs', 'gpt-image-reply', 'gpt-image-reply', 'selected', 'gpt-image-reply', 'gpt-image-reply', 'gpt-image-reply', 'draw-image-failed', 'gpt-generating', 'gpt-head-actions', 'gpt-head-actions', 'gpt-new-image', 'gpt-image-thread', 'gpt-user-message', 'gpt-image-reply', 'gpt-user-message', 'gpt-user-message', 'gpt-image-reply', 'gpt-image-reply',];
     // CSS variable injection 
     // CSS variable injection end 
     __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -2482,10 +2508,47 @@ function __VLS_template() {
                     ...{ class: ("gpt-image-reply") },
                     ...{ class: (({ selected: item.url === __VLS_ctx.drawUrl })) },
                 });
-                __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
-                    src: ((item.url)),
-                    alt: ((item.prompt)),
-                });
+                if (__VLS_ctx.drawImageFailed(item.url)) {
+                    __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                        ...{ class: ("image-load-failed") },
+                    });
+                }
+                else {
+                    __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
+                        ...{ onLoad: (...[$event]) => {
+                                if (!(!((__VLS_ctx.selected.key === 'home'))))
+                                    return;
+                                if (!(!((!__VLS_ctx.selected.needCap && !['chat', 'works', 'tts'].includes(__VLS_ctx.selected.key)))))
+                                    return;
+                                if (!(!((__VLS_ctx.selected.key === 'chat'))))
+                                    return;
+                                if (!((__VLS_ctx.selected.key === 'gpt_image')))
+                                    return;
+                                if (!(!((!__VLS_ctx.gptImageHistory.length))))
+                                    return;
+                                if (!(!((__VLS_ctx.drawImageFailed(item.url)))))
+                                    return;
+                                __VLS_ctx.markDrawImageLoaded(item.url);
+                            } },
+                        ...{ onError: (...[$event]) => {
+                                if (!(!((__VLS_ctx.selected.key === 'home'))))
+                                    return;
+                                if (!(!((!__VLS_ctx.selected.needCap && !['chat', 'works', 'tts'].includes(__VLS_ctx.selected.key)))))
+                                    return;
+                                if (!(!((__VLS_ctx.selected.key === 'chat'))))
+                                    return;
+                                if (!((__VLS_ctx.selected.key === 'gpt_image')))
+                                    return;
+                                if (!(!((!__VLS_ctx.gptImageHistory.length))))
+                                    return;
+                                if (!(!((__VLS_ctx.drawImageFailed(item.url)))))
+                                    return;
+                                __VLS_ctx.markDrawImageFailed(item.url);
+                            } },
+                        src: ((item.url)),
+                        alt: ((item.prompt)),
+                    });
+                }
                 __VLS_elementAsFunction(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
                 (item.model);
                 (item.createdAt);
@@ -2619,10 +2682,13 @@ function __VLS_template() {
         __VLS_elementAsFunction(__VLS_intrinsicElements.input)({
             ...{ onChange: (__VLS_ctx.uploadGptReference) },
             id: ("gpt-image-reference-file"),
+            ref: ("gptImageReferenceInput"),
             type: ("file"),
             accept: ("image/*"),
             ...{ style: ({}) },
         });
+        // @ts-ignore navigation for `const gptImageReferenceInput = ref()`
+        /** @type { typeof __VLS_ctx.gptImageReferenceInput } */ ;
         __VLS_elementAsFunction(__VLS_intrinsicElements.input)({
             ...{ onChange: (__VLS_ctx.readGptFile) },
             id: ("gpt-file-input"),
@@ -2645,6 +2711,7 @@ function __VLS_template() {
                         return;
                     __VLS_ctx.gptAttachmentMenu = !__VLS_ctx.gptAttachmentMenu;
                 } },
+            type: ("button"),
             ...{ class: ("gpt-upload") },
             title: ("添加上下文"),
         });
@@ -2663,6 +2730,7 @@ function __VLS_template() {
             });
             __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
                 ...{ onClick: (__VLS_ctx.openGptReferencePicker) },
+                type: ("button"),
             });
             const __VLS_248 = {}.ImageIcon;
             /** @type { [typeof __VLS_components.ImageIcon, ] } */ ;
@@ -2675,6 +2743,7 @@ function __VLS_template() {
             }, ...__VLS_functionalComponentArgsRest(__VLS_249));
             __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
                 ...{ onClick: (__VLS_ctx.addGptLink) },
+                type: ("button"),
             });
             const __VLS_254 = {}.Globe2;
             /** @type { [typeof __VLS_components.Globe2, ] } */ ;
@@ -2687,6 +2756,7 @@ function __VLS_template() {
             }, ...__VLS_functionalComponentArgsRest(__VLS_255));
             __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
                 ...{ onClick: (__VLS_ctx.openGptFilePicker) },
+                type: ("button"),
             });
             const __VLS_260 = {}.FileText;
             /** @type { [typeof __VLS_components.FileText, ] } */ ;
@@ -3105,16 +3175,55 @@ function __VLS_template() {
                 (item.url === __VLS_ctx.drawUrl ? '已选中' : `第 ${i + 1} 张`);
             }
         }
-        else if (__VLS_ctx.drawUrl) {
+        else if (__VLS_ctx.drawUrl && !__VLS_ctx.drawImageFailed(__VLS_ctx.drawUrl)) {
             __VLS_elementAsFunction(__VLS_intrinsicElements.button, __VLS_intrinsicElements.button)({
                 ...{ onClick: (__VLS_ctx.previewDraw) },
                 ...{ class: ("draw-preview-trigger") },
                 title: ("点击放大预览"),
             });
             __VLS_elementAsFunction(__VLS_intrinsicElements.img)({
+                ...{ onLoad: (...[$event]) => {
+                        if (!(!((__VLS_ctx.selected.key === 'home'))))
+                            return;
+                        if (!(!((!__VLS_ctx.selected.needCap && !['chat', 'works', 'tts'].includes(__VLS_ctx.selected.key)))))
+                            return;
+                        if (!(!((__VLS_ctx.selected.key === 'chat'))))
+                            return;
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            return;
+                        if (!(!((__VLS_ctx.drawMode === 'product' && __VLS_ctx.productResults.length))))
+                            return;
+                        if (!((__VLS_ctx.drawUrl && !__VLS_ctx.drawImageFailed(__VLS_ctx.drawUrl))))
+                            return;
+                        __VLS_ctx.markDrawImageLoaded(__VLS_ctx.drawUrl);
+                    } },
+                ...{ onError: (...[$event]) => {
+                        if (!(!((__VLS_ctx.selected.key === 'home'))))
+                            return;
+                        if (!(!((!__VLS_ctx.selected.needCap && !['chat', 'works', 'tts'].includes(__VLS_ctx.selected.key)))))
+                            return;
+                        if (!(!((__VLS_ctx.selected.key === 'chat'))))
+                            return;
+                        if (!(!((__VLS_ctx.selected.key === 'gpt_image'))))
+                            return;
+                        if (!((['image', 'product_main'].includes(__VLS_ctx.selected.key))))
+                            return;
+                        if (!(!((__VLS_ctx.drawMode === 'product' && __VLS_ctx.productResults.length))))
+                            return;
+                        if (!((__VLS_ctx.drawUrl && !__VLS_ctx.drawImageFailed(__VLS_ctx.drawUrl))))
+                            return;
+                        __VLS_ctx.markDrawImageFailed(__VLS_ctx.drawUrl);
+                    } },
                 src: ((__VLS_ctx.drawUrl)),
                 ...{ class: ("draw-img") },
                 alt: ("AI 绘画结果"),
+            });
+        }
+        else if (__VLS_ctx.drawUrl) {
+            __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+                ...{ class: ("draw-image-failed") },
             });
         }
         if (__VLS_ctx.drawUrl && __VLS_ctx.drawUsedModel) {
@@ -3123,7 +3232,7 @@ function __VLS_template() {
             });
             (__VLS_ctx.drawUsedModel);
         }
-        if (__VLS_ctx.drawUrl) {
+        if (__VLS_ctx.drawUrl && !__VLS_ctx.drawImageFailed(__VLS_ctx.drawUrl)) {
             __VLS_elementAsFunction(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: ("draw-actions") },
             });
@@ -5109,12 +5218,14 @@ function __VLS_template() {
     var __VLS_599;
     __VLS_585.slots.default;
     var __VLS_585;
-    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ghost-btn', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-gpt-image', 'gpt-image-head', 'gpt-head-actions', 'gpt-new-image', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-thread', 'gpt-turn', 'gpt-user-message', 'gpt-turn-refs', 'gpt-image-reply', 'selected', 'gpt-generating', 'gpt-context-chip', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-reference-strip', 'gpt-reference-chip', 'gpt-composer-tools', 'gpt-attach-wrap', 'gpt-upload', 'gpt-attach-menu', 'gpt-model-picker', 'gpt-used-model', 'gpt-download', 'gpt-send', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'model-select', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
+    ['app', 'glow', 'topbar', 'mobile-menu', 'brand', 'brand-mark', 'top-search', 'top-right', 'balance-pill', 'ghost-btn', 'ghost-btn', 'user-chip', 'layout', 'mobile-backdrop', 'sidebar', 'is-open', 'nav-group', 'nav-item', 'active', 'soon', 'main', 'home', 'home-hero', 'hero-copy', 'eyebrow', 'hero-title', 'hero-sub', 'hero-actions', 'hero-primary', 'hero-secondary', 'hero-orbit', 'orbit-ring', 'ring-one', 'orbit-ring', 'ring-two', 'orbit-core', 'orbit-chip', 'chip-one', 'orbit-chip', 'chip-two', 'orbit-chip', 'chip-three', 'quick-start', 'section-label', 'eyebrow', 'section-note', 'quick-grid', 'quick-card', 'quick-copy', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-chat', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-image', 'quick-icon', 'quick-arrow', 'quick-card', 'quick-video', 'quick-icon', 'quick-arrow', 'tool-library', 'section-label', 'eyebrow', 'section-note', 'home-group', 'group-head', 'group-title', 'group-count', 'tool-grid', 'tool-card', 'tilt', 'tool-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-actions', 'ghost-btn', 'ghost-btn', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'dir-tags', 'tag-row', 'dir-tag', 'picked', 'upload-row', 'ghost-btn', 'thumb', 'skill-route', 'gen-btn', 'result-panel', 'result-top', 'result-tabs', 'picked', 'result-img', 'result-text', 'revise-box', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'chat-ws', 'workspace-chat', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ghost-btn', 'chat-box', 'chat-msgs', 'empty', 'msg', 'bubble', 'msg', 'ai', 'bubble', 'typing', 'chat-input', 'gen-btn', 'workspace', 'workspace-gpt-image', 'gpt-image-head', 'gpt-head-actions', 'gpt-new-image', 'gpt-new-image', 'gpt-image-stage', 'gpt-image-empty', 'gpt-image-thread', 'gpt-turn', 'gpt-user-message', 'gpt-turn-refs', 'gpt-image-reply', 'selected', 'image-load-failed', 'gpt-generating', 'gpt-context-chip', 'gpt-image-composer', 'gpt-editing-chip', 'gpt-reference-strip', 'gpt-reference-chip', 'gpt-composer-tools', 'gpt-attach-wrap', 'gpt-upload', 'gpt-attach-menu', 'gpt-model-picker', 'gpt-used-model', 'gpt-download', 'gpt-send', 'workspace', 'workspace-image', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'draw-mode', 'picked', 'picked', 'media-upload', 'compact', 'product-thumbs', 'product-thumb', 'product-fields', 'size-row', 'size-btn', 'picked', 'selected-template-card', 'template-mini', 'model-select', 'skill-route', 'size-row', 'size-btn', 'picked', 'gen-btn', 'gen-cost', 'result-panel', 'product-result-section', 'product-result-head', 'product-result-grid', 'picked', 'draw-preview-trigger', 'draw-img', 'draw-image-failed', 'model-result', 'draw-actions', 'ghost-btn', 'ghost-btn', 'draw-revise', 'draw-revise-label', 'draw-revise-row', 'ghost-btn', 'draw-history', 'draw-history-head', 'draw-history-grid', 'picked', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-video', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'compact', 'media-upload', 'compact', 'skill-route', 'gen-btn', 'result-panel', 'draw-img', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-tts', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'tts-audio', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-media', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'media-upload', 'media-upload', 'compact', 'char-count', 'skill-route', 'gen-btn', 'result-panel', 'media-result', 'result-top', 'tts-audio', 'draw-img', 'draw-img', 'ghost-btn', 'media-download', 'empty', 'result-empty', 'empty-icon', 'workspace', 'workspace-works', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'work-card', 'tilt', 'tag', 'empty', 'workspace', 'workspace-materials', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'works-grid', 'material-card', 'tilt', 'mat-actions', 'ghost-btn', 'ghost-btn', 'danger', 'empty', 'workspace', 'workspace-template', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'form-panel', 'panel-head', 'panel-icon', 'mat-picker', 'mat-pick', 'picked', 'pick-ok', 'empty', 'char-count', 'model-select', 'gen-btn', 'result-panel', 'result-top', 'draw-img', 'ghost-btn', 'empty', 'result-empty', 'empty-icon', 'workspace', 'ws-head', 'ws-title', 'tool-icon', 'sm', 'ws-body', 'empty', 'draw-preview-dialog', 'draw-preview-img', 'ghost-btn', 'gen-btn', 'product-template-dialog', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-filter-row', 'picked', 'template-result-count', 'template-library-grid', 'template-library-card', 'picked', 'template-art', 'template-product', 'template-copy', 'template-meta', 'auth-dialog', 'auth-hero', 'brand-mark', 'big', 'auth-form', 'code-row', 'code-btn', 'auth-btn', 'auth-switch', 'history-dialog', 'history-body', 'history-list', 'history-item', 'picked', 'tag', 'empty', 'history-detail', 'hd-top', 'ghost-btn', 'ghost-btn', 'hd-text', 'empty', 'account-dialog', 'account-summary', 'ghost-btn', 'payment-types', 'package-grid', 'package-item', 'custom-recharge',];
     var __VLS_slots;
     var $slots;
     let __VLS_inheritedAttrs;
     var $attrs;
-    const __VLS_refs = {};
+    const __VLS_refs = {
+        'gptImageReferenceInput': __VLS_nativeElements['input'],
+    };
     var $refs;
     var $el;
     return {
@@ -5195,9 +5306,13 @@ const __VLS_self = (await import('vue')).defineComponent({
             gptImageInput: gptImageInput,
             gptImageReferenceUrls: gptImageReferenceUrls,
             gptAttachmentMenu: gptAttachmentMenu,
+            gptImageReferenceInput: gptImageReferenceInput,
             gptFileName: gptFileName,
             drawHistory: drawHistory,
             gptImageHistory: gptImageHistory,
+            drawImageFailed: drawImageFailed,
+            markDrawImageFailed: markDrawImageFailed,
+            markDrawImageLoaded: markDrawImageLoaded,
             clearGptImageHistory: clearGptImageHistory,
             productResults: productResults,
             drawMode: drawMode,
@@ -5311,6 +5426,7 @@ export default (await import('vue')).defineComponent({
     setup() {
         return {};
     },
+    __typeRefs: {},
     __typeEl: {},
 });
 ; /* PartiallyEnd: #4569/main.vue */

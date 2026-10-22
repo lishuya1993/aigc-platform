@@ -99,15 +99,23 @@ const gptImageInput = ref('')
 const gptImageReferenceUrls = ref<string[]>([])
 const gptImageUploading = ref(false)
 const gptAttachmentMenu = ref(false)
+const gptImageReferenceInput = ref<HTMLInputElement | null>(null)
 const gptFileName = ref('')
 const gptFileContext = ref('')
 type DrawResult = { url: string; prompt: string; model: string; createdAt: string; references?: string[] }
 const drawHistory = ref<DrawResult[]>([])
 const gptImageHistory = ref<DrawResult[]>([])
+const failedDrawUrls = ref<Set<string>>(new Set())
 const gptImageMemoryKey = computed(() => `ll_gpt_image_history_${userName.value || 'guest'}`)
 function saveGptImageHistory() { try { localStorage.setItem(gptImageMemoryKey.value, JSON.stringify(gptImageHistory.value.slice(-30))) } catch {} }
 function loadGptImageHistory() { try { const raw = localStorage.getItem(gptImageMemoryKey.value); gptImageHistory.value = raw ? JSON.parse(raw) : [] } catch { gptImageHistory.value = [] } }
-function clearGptImageHistory() { gptImageHistory.value = []; localStorage.removeItem(gptImageMemoryKey.value); startNewGptImage() }
+function drawImageFailed(url: string) { return failedDrawUrls.value.has(url) }
+function markDrawImageFailed(url: string) { failedDrawUrls.value = new Set([...failedDrawUrls.value, url]) }
+function markDrawImageLoaded(url: string) {
+  if (!failedDrawUrls.value.has(url)) return
+  const next = new Set(failedDrawUrls.value); next.delete(url); failedDrawUrls.value = next
+}
+function clearGptImageHistory() { gptImageHistory.value = []; failedDrawUrls.value = new Set(); localStorage.removeItem(gptImageMemoryKey.value); startNewGptImage() }
 const productResults = ref<DrawResult[]>([])
 const drawMode = ref<'text'|'product'>('text')
 const productImageUrl = ref('')
@@ -738,7 +746,18 @@ async function uploadGptReference(ev: any) {
   } catch (e: any) { ElMessage.error(e.message || '参考图片上传失败') } finally { gptImageUploading.value = false }
 }
 
-function openGptReferencePicker() { document.getElementById('gpt-image-reference-file')?.click() }
+function openGptReferencePicker() {
+  gptAttachmentMenu.value = false
+  const input = gptImageReferenceInput.value
+  if (!input) return
+  input.value = ''
+  try {
+    if (typeof input.showPicker === 'function') input.showPicker()
+    else input.click()
+  } catch {
+    input.click()
+  }
+}
 function removeGptReference(url: string) { gptImageReferenceUrls.value = gptImageReferenceUrls.value.filter(item => item !== url) }
 function openGptFilePicker() { gptAttachmentMenu.value = false; document.getElementById('gpt-file-input')?.click() }
 async function readGptFile(ev: any) {
@@ -1102,7 +1121,7 @@ async function pollPayment(orderNo: string) {
           <div v-else class="gpt-image-thread">
             <article v-for="(item, i) in gptImageHistory" :key="item.url + i" class="gpt-turn">
               <div class="gpt-user-message"><div v-if="item.references?.length" class="gpt-turn-refs"><img v-for="url in item.references" :key="url" :src="url" alt="参考图"/></div><p>{{ item.prompt }}</p></div>
-              <button class="gpt-image-reply" :class="{selected: item.url === drawUrl}" @click="selectDrawResult(item)"><img :src="item.url" :alt="item.prompt"/><span>模型：{{ item.model }} · {{ item.createdAt }}</span><b v-if="item.url === drawUrl">正在基于此图修改</b></button>
+              <button class="gpt-image-reply" :class="{selected: item.url === drawUrl}" @click="selectDrawResult(item)"><div v-if="drawImageFailed(item.url)" class="image-load-failed">图片地址已失效</div><img v-else :src="item.url" :alt="item.prompt" @load="markDrawImageLoaded(item.url)" @error="markDrawImageFailed(item.url)"/><span>模型：{{ item.model }} · {{ item.createdAt }}</span><b v-if="item.url === drawUrl">正在基于此图修改</b></button>
             </article>
             <div v-if="drawing" class="gpt-generating"><Sparkles :size="16"/> 正在生成图片…</div>
           </div>
@@ -1114,14 +1133,14 @@ async function pollPayment(orderNo: string) {
           <div v-else-if="gptImageReferenceUrls.length" class="gpt-reference-strip"><div v-for="url in gptImageReferenceUrls" :key="url" class="gpt-reference-chip"><img :src="url" alt="上传的参考图"/><button title="移除参考图" @click="removeGptReference(url)"><X :size="13"/></button></div><span>已添加 {{ gptImageReferenceUrls.length }} 张参考图</span></div>
           <textarea v-model="gptImageInput" rows="1" :placeholder="drawUrl ? '告诉我需要怎样修改这张图片…' : '描述一张新图片…'" @keydown.enter.exact.prevent="submitGptImage"></textarea>
           <div class="gpt-composer-tools">
-            <input id="gpt-image-reference-file" type="file" accept="image/*" style="display:none" @change="uploadGptReference"/>
+            <input id="gpt-image-reference-file" ref="gptImageReferenceInput" type="file" accept="image/*" style="display:none" @change="uploadGptReference"/>
             <input id="gpt-file-input" type="file" accept=".txt,.md,.csv,.json,.html,.htm,text/plain,text/markdown,text/csv,application/json,text/html" style="display:none" @change="readGptFile"/>
             <div class="gpt-attach-wrap">
-              <button class="gpt-upload" title="添加上下文" @click="gptAttachmentMenu = !gptAttachmentMenu"><Plus :size="17"/></button>
+              <button type="button" class="gpt-upload" title="添加上下文" @click="gptAttachmentMenu = !gptAttachmentMenu"><Plus :size="17"/></button>
               <div v-if="gptAttachmentMenu" class="gpt-attach-menu">
-                <button @click="openGptReferencePicker"><ImageIcon :size="16"/> 图片</button>
-                <button @click="addGptLink"><Globe2 :size="16"/> 公开链接</button>
-                <button @click="openGptFilePicker"><FileText :size="16"/> 文档</button>
+                <button type="button" @click="openGptReferencePicker"><ImageIcon :size="16"/> 图片</button>
+                <button type="button" @click="addGptLink"><Globe2 :size="16"/> 公开链接</button>
+                <button type="button" @click="openGptFilePicker"><FileText :size="16"/> 文档</button>
               </div>
             </div>
             <div class="gpt-model-picker"><Sparkles :size="14"/><select v-model="drawModel" aria-label="生图模型"><option v-for="model in drawModels" :key="model.model_code" :value="model.model_code">{{ model.model_name || model.model_code }}</option></select></div>
@@ -1166,9 +1185,10 @@ async function pollPayment(orderNo: string) {
                 </button>
               </div>
             </div>
-            <button v-else-if="drawUrl" class="draw-preview-trigger" title="点击放大预览" @click="previewDraw"><img :src="drawUrl" class="draw-img" alt="AI 绘画结果"/></button>
+            <button v-else-if="drawUrl && !drawImageFailed(drawUrl)" class="draw-preview-trigger" title="点击放大预览" @click="previewDraw"><img :src="drawUrl" class="draw-img" alt="AI 绘画结果" @load="markDrawImageLoaded(drawUrl)" @error="markDrawImageFailed(drawUrl)"/></button>
+            <div v-else-if="drawUrl" class="draw-image-failed">图片地址已失效，请重新生成</div>
             <div v-if="drawUrl && drawUsedModel" class="model-result">模型：{{ drawUsedModel }}</div>
-            <div v-if="drawUrl" class="draw-actions"><button class="ghost-btn" @click="previewDraw">预览</button><button class="ghost-btn" @click="downloadDraw">下载图片</button></div>
+            <div v-if="drawUrl && !drawImageFailed(drawUrl)" class="draw-actions"><button class="ghost-btn" @click="previewDraw">预览</button><button class="ghost-btn" @click="downloadDraw">下载图片</button></div>
             <div v-if="drawUrl" class="draw-revise">
               <div class="draw-revise-label"><b>{{ drawMode === 'product' ? '基于选中图片继续生成' : '按提示修改当前图片' }}</b><small>{{ drawMode === 'product' ? '新图片会追加到上方，原图不会被覆盖' : '保持未指定内容不变' }}</small></div>
               <div class="draw-revise-row"><input v-model="drawRevisePrompt" placeholder="输入修改要求，如：换成厨房场景，保留商品主体" @keyup.enter="reviseDraw" /><button class="ghost-btn" :disabled="revisingDraw" @click="reviseDraw">{{ revisingDraw ? '生成中…' : '生成新图' }}</button></div>
@@ -1632,6 +1652,6 @@ async function pollPayment(orderNo: string) {
 .workspace-gpt-image{width:min(100%,1080px);max-width:1080px;min-height:0;padding:0 0 28px}.workspace-gpt-image .gpt-image-stage{min-height:clamp(320px,calc(100vh - 390px),560px)}.workspace-gpt-image .gpt-image-empty{min-height:320px}.workspace-gpt-image .gpt-image-composer{margin:0 4px;bottom:16px;z-index:2}
 .gpt-context-chip{display:flex;align-items:center;gap:8px;width:min(100%,1080px);box-sizing:border-box;margin:0 4px 10px;padding:9px 12px;border:1px solid #dce5f1;border-radius:10px;background:#fbfcff;color:#536681;font-size:12px}.gpt-context-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.gpt-context-chip button{margin-left:auto;display:grid;place-items:center;border:0;background:transparent;color:#8a98ad;cursor:pointer}.gpt-attach-wrap{position:relative}.gpt-attach-menu{position:absolute;left:0;bottom:42px;z-index:5;width:170px;padding:7px;border:1px solid #dbe3ef;border-radius:9px;background:#fff;box-shadow:0 12px 28px #17233a1c}.gpt-attach-menu button{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;border-radius:7px;background:transparent;color:#334155;text-align:left;font:inherit;font-size:12px;cursor:pointer}.gpt-attach-menu button:hover{background:#f0f4fa}
 .gpt-reference-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:3px 5px 8px;color:#718096;font-size:12px}.gpt-reference-chip{position:relative;width:38px;height:38px}.gpt-reference-chip img{width:38px;height:38px;border-radius:7px;object-fit:cover;border:1px solid #dce5ef}.gpt-reference-chip button{position:absolute;right:-5px;top:-5px;width:17px;height:17px;display:grid;place-items:center;padding:0;border:1px solid #fff;border-radius:50%;background:#26344b;color:#fff;cursor:pointer}
-.gpt-head-actions{display:flex;align-items:center;gap:8px;flex:none}.gpt-image-thread{width:min(100%,820px);margin:0 auto;display:flex;flex-direction:column;gap:24px;padding:8px 0 24px}.gpt-turn{display:flex;flex-direction:column;gap:10px}.gpt-user-message{align-self:flex-end;width:min(78%,620px);padding:12px 14px;border:1px solid #dbe4f4;border-radius:14px 14px 4px 14px;background:#f2f6ff;color:#27344b}.gpt-user-message p{margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}.gpt-turn-refs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}.gpt-turn-refs img{width:42px;height:42px;border-radius:7px;object-fit:cover;border:1px solid #cdd9ec}.gpt-image-reply{align-self:flex-start;position:relative;width:min(78%,460px);padding:0;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#f1f3f6;cursor:pointer;text-align:left;box-shadow:0 8px 24px #18243b12;transition:border-color .15s,box-shadow .15s}.gpt-image-reply:hover{border-color:#a9bde8;box-shadow:0 12px 28px #18243b1c}.gpt-image-reply.selected{border-color:#3158e8;box-shadow:0 0 0 3px #3158e81c,0 12px 28px #18243b1c}.gpt-image-reply img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#eef1f5}.gpt-image-reply span{display:block;padding:8px 10px;color:#728098;background:#fff;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gpt-image-reply b{position:absolute;right:9px;bottom:39px;padding:5px 8px;border-radius:6px;background:#3158e8e8;color:#fff;font-size:11px;font-weight:600}.gpt-generating{align-self:flex-start;display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px dashed #b9c9e8;border-radius:12px;background:#f7f9ff;color:#60749c;font-size:13px}.gpt-generating svg{color:#3158e8;animation:gpt-pulse 1.2s ease-in-out infinite}@keyframes gpt-pulse{50%{opacity:.35;transform:scale(.88)}}
+.gpt-head-actions{display:flex;align-items:center;gap:8px;flex:none}.gpt-image-thread{width:min(100%,820px);margin:0 auto;display:flex;flex-direction:column;gap:24px;padding:8px 0 24px}.gpt-turn{display:flex;flex-direction:column;gap:10px}.gpt-user-message{align-self:flex-end;width:min(78%,620px);padding:12px 14px;border:1px solid #dbe4f4;border-radius:14px 14px 4px 14px;background:#f2f6ff;color:#27344b}.gpt-user-message p{margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;word-break:break-word}.gpt-turn-refs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}.gpt-turn-refs img{width:42px;height:42px;border-radius:7px;object-fit:cover;border:1px solid #cdd9ec}.gpt-image-reply{align-self:flex-start;position:relative;width:min(78%,460px);padding:0;border:2px solid transparent;border-radius:12px;overflow:hidden;background:#f1f3f6;cursor:pointer;text-align:left;box-shadow:0 8px 24px #18243b12;transition:border-color .15s,box-shadow .15s}.gpt-image-reply:hover{border-color:#a9bde8;box-shadow:0 12px 28px #18243b1c}.gpt-image-reply.selected{border-color:#3158e8;box-shadow:0 0 0 3px #3158e81c,0 12px 28px #18243b1c}.gpt-image-reply img{display:block;width:100%;height:auto;max-height:520px;object-fit:contain;background:#eef1f5}.gpt-image-reply span{display:block;padding:8px 10px;color:#728098;background:#fff;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gpt-image-reply b{position:absolute;right:9px;bottom:39px;padding:5px 8px;border-radius:6px;background:#3158e8e8;color:#fff;font-size:11px;font-weight:600}.image-load-failed,.draw-image-failed{display:grid;place-items:center;min-height:220px;padding:24px;background:#f4f5f7;color:#8a94a6;font-size:13px}.draw-image-failed{width:100%;border:1px dashed #cbd3df;border-radius:8px}.gpt-generating{align-self:flex-start;display:flex;align-items:center;gap:8px;padding:12px 14px;border:1px dashed #b9c9e8;border-radius:12px;background:#f7f9ff;color:#60749c;font-size:13px}.gpt-generating svg{color:#3158e8;animation:gpt-pulse 1.2s ease-in-out infinite}@keyframes gpt-pulse{50%{opacity:.35;transform:scale(.88)}}
 @media(max-width:700px){.gpt-head-actions{gap:5px}.gpt-head-actions .gpt-new-image{padding:0 9px;font-size:12px}.gpt-image-thread{gap:18px;padding-top:2px}.gpt-user-message,.gpt-image-reply{width:92%}.gpt-user-message{padding:10px 12px}.gpt-user-message p{font-size:13px}.gpt-image-reply img{max-height:none}.gpt-image-reply b{bottom:38px}}
 </style>
